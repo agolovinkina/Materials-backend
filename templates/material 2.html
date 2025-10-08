@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <title>{{ .material.MaterialName }}</title>
+    <link rel="stylesheet" href="/static/styles/material_style.css">
+</head>
+<body>
+    <header class="header">
+        <h11 class="h11">
+            <a href="/materials"><img src="http://localhost:9000/genreanalysis/img/image.png" alt="home"></a>
+        </h11>
+    </header>
+
+    <div class="product-container">
+        <div class="product-content">
+            <div class="product-header">
+                <h1 class="product-title">{{ .material.MaterialName }}</h1>
+            </div>
+            
+            <div class="product-body">
+                <div class="product-image-section">
+                    {{ if .material.MaterialImageURL }}
+                    <img src="{{ .material.MaterialImageURL }}" alt="{{ .material.MaterialName }}" class="product-image">
+                    {{ else }}
+                    <img src="/static/img/default-material.png" alt="{{ .material.MaterialName }}" class="product-image">
+                    {{ end }}
+                </div>
+                
+                <div class="product-info">
+                    {{ if .material.Isotopes }}
+                    <div class="info-section">
+                        <div class="info-title">Изотопный анализ</div>
+                        <div class="isotopes-badge">{{ .material.Isotopes }}</div>
+                    </div>
+                    {{ end }}
+                    
+                    {{ if .material.SampleRequirements }}
+                    <div class="info-section">
+                        <div class="info-title">Требования к образцу</div>
+                        <div class="sample-requirements">{{ .material.SampleRequirements }}</div>
+                    </div>
+                    {{ end }}
+
+                    {{ if .material.MaterialDescription }}
+                    <div class="info-section">
+                        <div class="info-title">Описание</div>
+                        <div class="material-description">{{ .material.MaterialDescription }}</div>
+                    </div>
+                    {{ end }}
+
+                    <!-- Кнопка добавления в заявку -->
+                    <div class="info-section">
+                        <form action="/dating/add-material" method="POST">
+                            <input type="hidden" name="material_id" value="{{ .material.MaterialID }}">
+                            <button type="submit" class="add-to-dating-btn">Добавить в заявку на датирование</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <a href="/datinganalysisrequest/{{ .currentDatingID }}" class="cart">
+            <img src="http://localhost:9000/genreanalysis/img/footer.png" alt="Датирование" class="cart-image">
+            {{ if gt .DatingCount 0 }}
+            <div class="cart-count">{{ .DatingCount }}</div>
+            {{ end }}
+        </a>
+    </footer>
+</body>
+</html>

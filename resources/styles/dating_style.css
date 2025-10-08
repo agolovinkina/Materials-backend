@@ -1,0 +1,193 @@
+/* Общие стили */
+body {
+    font-family: Inica, sans-serif;
+    margin: 0;
+    background-color: #ffffff;
+}
+
+/* Header */
+.header {
+    background-color: #0066CC;
+    height: 120px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    padding-left: 40px;
+    position: relative;
+    margin-bottom: 10px;
+}
+
+.header img {
+    width: 120px;
+    margin-top: 0;
+    cursor: pointer;
+}
+
+/* Контейнер */
+.container {
+    padding: 20px 40px;
+}
+
+.container h2 {
+    color: #0066CC;
+    font-size: 24px;
+    font-weight: bold;
+    margin: 0 0 30px 0;
+}
+
+/* Таблица с информацией */
+.dating-info {
+    margin-bottom: 40px;
+}
+
+.dating-info table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 2px solid #0066CC;
+}
+
+.dating-info th,
+.dating-info td {
+    padding: 15px;
+    text-align: left;
+    border: 1px solid #0066CC;
+    font-size: 18px;
+}
+
+.dating-info th {
+    background: #ffffff;
+    font-weight: bold;
+    color: #0066CC;
+}
+
+.dating-info td {
+    background: #ffffff;
+    color: #0066CC;
+}
+
+/* Карточки материалов */
+.materials-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+.material-card {
+    border: 2px solid #0066CC;
+    padding: 20px;
+    background: #ffffff;
+    border-radius: 5px;
+    display: flex;
+    align-items: flex-start;
+    height: 120px;
+    position: relative; /* Добавляем для позиционирования даты */
+}
+
+.material-image {
+    flex-shrink: 0;
+    width: 100px;
+    height: 100px;
+}
+
+.material-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.material-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    height: 100%;
+}
+
+/* Название материала */
+.material-title {
+    font-size: 20px;
+    font-weight: bold;
+    color: #0066CC;
+    margin: 0;
+}
+
+/* Изотоп - выравнивание по ширине с регионом в таблице */
+.isotope-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 33.33%; /* Такая же ширина как у колонки "Регион" в таблице */
+    margin-left: 33.33%; /* Сдвигаем на ширину первой колонки таблицы */
+}
+
+.isotopelabel {
+    font-size: 20px;
+    font-weight: bold;
+    color: #0066CC;
+}
+
+.isotope-section input {
+    width: 100%;
+    padding: 10px 15px;
+    border: 2px solid #0066CC;
+    border-radius: 5px;
+    font-size: 18px;
+    font-family: Inica, sans-serif;
+    color: #0066CC;
+}
+
+/* Календарная дата - исправленное позиционирование */
+.calendar-date-section {
+    position: absolute;
+    right: 20px;
+    bottom: 20px;
+}
+
+.calendar-date strong {
+    font-size: 18px;
+    font-weight: bold;
+    color: #0066CC;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.calendar-date div {
+    font-size: 18px;
+    color: #0066CC;
+}
+
+.empty-date {
+    color: #4AA0F6;
+    font-style: italic;
+}
+
+/* Временная метка */
+.timestamp {
+    margin-top: 30px;
+    font-size: 14px;
+    color: #666666;
+    text-align: right;
+}
+
+/* Кнопка удаления */
+.delete-form {
+    margin-top: 30px;
+    text-align: center;
+}
+
+.delete-btn {
+    background: #ff4444;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 5px;
+    font-size: 16px;
+    font-family: Inica, sans-serif;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.delete-btn:hover {
+    background: #cc0000;
+}

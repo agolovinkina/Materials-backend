@@ -1,0 +1,208 @@
+body {
+    font-family: Inica, sans-serif;
+    margin: 0;
+    background-color: #ffffff;
+}
+
+.header {
+    background-color: #0066CC;
+    height: 120px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    padding-left: 40px;
+    position: relative;
+    margin-bottom: 10px;
+}
+
+.h11 a img {
+    width: 120px;
+    margin-top: 0px;
+    cursor: pointer;
+    margin-right: 20px;
+}
+
+.product-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.product-content {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+.product-header {
+    text-align: center;
+    padding-bottom: 20px;
+    
+}
+
+.product-title {
+    font-size: 36px;
+    font-weight: bold;
+    color: #000000;
+    margin: 0;
+}
+
+.product-body {
+    display: flex;
+    gap: 40px;
+    align-items: flex-start;
+}
+
+.product-image-section {
+    flex-shrink: 0;
+    width: 300px;
+    text-align: center;
+}
+
+.product-image {
+    max-width: 100%;
+    height: 300px;
+    object-fit: cover;
+}
+
+.product-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+.info-section {
+    background: #ffffff;
+    padding: 20px;
+}
+
+.info-title {
+    color: #000000;
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+}
+
+.isotopes-badge {
+   
+    color: rgb(0, 0, 0);
+    padding: 10px 15px;
+    font-size: 18px;
+    display: inline-block;
+}
+
+.sample-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.sample-list li {
+    padding: 8px 0;
+    
+    
+    font-size: 16px;
+}
+
+.sample-list li:last-child {
+    border-bottom: none;
+}
+
+.sample-list li:before {
+    content: "•";
+    color: #000000;
+    font-weight: bold;
+    display: inline-block;
+    width: 1em;
+    margin-left: -1em;
+}
+
+
+
+
+footer {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 30px;
+    gap: 10px;
+    width: 100%;
+    height: 40px;
+    margin-top: auto;
+}
+
+.cart {
+    width: 50px;
+    height: 50px;
+    position: relative;
+    text-decoration: none;
+    display: block;
+}
+
+.cart-image {
+    width: 50px;
+    height: 50px;
+}
+
+.cart-count {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    right: 0;
+    top: 0;
+    background: #0066CC;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #FFFFFF;
+    font-size: 14px;
+}
+
+
+
+/* Стили для кнопки добавления в заявку */
+.add-to-dating-btn {
+    background: #0066CC !important;
+    color: white !important;
+    text-decoration: none;
+    padding: 15px 25px;
+    border-radius: 5px;
+    display: inline-block;
+    font-size: 18px;
+    border: none;
+    cursor: pointer;
+    font-family: Inica, sans-serif;
+    transition: background 0.3s;
+    width: 100%;
+    text-align: center;
+}
+
+.add-to-dating-btn:hover {
+    background: #4AA0F6 !important;
+    color: white !important;
+}
+
+/* Стили для описания материала */
+.material-description {
+    color: #333;
+    line-height: 1.5;
+    margin-top: 10px;
+    font-size: 16px;
+}
+
+.sample-requirements {
+    color: #333;
+    line-height: 1.5;
+    margin-top: 10px;
+    font-size: 16px;
+    white-space: pre-line;
+}
+
+/* Убедитесь, что форма занимает всю ширину */
+.info-section form {
+    width: 100%;
+}

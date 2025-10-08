@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <title>Dating</title>
+    <link rel="stylesheet" href="/static/styles/dating_style.css">
+</head>
+<body>
+    <header class="header">
+        <a href="/materials"><img src="http://localhost:9000/genreanalysis/img/image.png" alt="home"></a>
+    </header>
+
+    <div class="container">
+        <h2>Составление заявки</h2>
+
+        <div class="dating-info">
+            <table>
+                <tr>
+                    <th>Радиоуглеродный возраст</th>
+                    <th>Регион</th>
+                    <th>Дата экспедиции</th>
+                </tr>
+                <tr>
+                    <td>{{ .dating.CarbonAge }}</td>
+                    <td>{{ .dating.Region }}</td>
+                    <td>{{ .dating.ExpeditionDate.Format "2006-01-02" }}</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="materials-grid">
+            {{ range .dating.RequestMaterials }}
+            <div class="material-card">
+                <div class="material-image">
+                    <img src="{{ .Material.MaterialImageURL }}" alt="{{ .Material.MaterialName }}">
+                </div>
+
+                <div class="material-content">
+                    <div class="material-title">{{ .Material.MaterialName }}</div>
+
+                    <div class="isotope-section">
+                        <div class="isotopelabel">Изотоп:</div>
+                        <input type="text" placeholder="Введите изотоп" value="{{ .Material.Isotopes }}">
+                    </div>
+
+                    <div class="calendar-date-section">
+                        <div class="calendar-date">
+                            <strong>Календарная дата</strong>
+                            {{ if .CalendarDate }}
+                            <div>{{ .CalendarDate }}</div>
+                            {{ else }}
+                            <div class="empty-date">Дата будет рассчитана</div>
+                            {{ end }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {{ end }}
+        </div>
+
+        <div class="timestamp">
+            Анализ создан: {{ .time }}
+        </div>
+
+        <!-- Кнопка удаления заявки -->
+        <form action="/dating/delete" method="POST" class="delete-form">
+            <input type="hidden" name="request_id" value="{{ .dating.RequestID }}">
+            <button type="submit" class="delete-btn">Удалить заявку</button>
+        </form>
+    </div>
+</body>
+</html>

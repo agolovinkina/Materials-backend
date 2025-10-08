@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <title>RadioCarbon Dating</title>
+    <link rel="stylesheet" href="/static/styles/materials_style.css">
+</head>
+<body>
+    <header class="header">
+        <h1 class="h1">
+            <a href="/materials"><img src="http://localhost:9000/genreanalysis/img/image.png" alt="home"></a>
+        </h1>
+    </header>
+    
+    <form action="/materials" method="GET">
+        <input type="text" name="searchmaterialquery" placeholder="Введите запрос" value="{{ .searchmaterialquery }}">
+        <button type="submit">Найти</button>
+    </form>
+    
+    <ul class="card-list">
+        {{ if .materials }}
+            {{ range .materials }}
+            <li class="card">
+                <a href="/material/{{ .MaterialID }}">
+                    <div class="card-image-container">
+                        {{ if .MaterialImageURL }}
+                        <img src="{{ .MaterialImageURL }}" alt="{{ .MaterialName }}" class="card-image">
+                        {{ else }}
+                        <img src="/static/img/default-material.png" alt="{{ .MaterialName }}" class="card-image">
+                        {{ end }}
+                    </div>
+                    <div class="card-content">
+                        <h2 class="card-title">{{ .MaterialName }}</h2>
+                        {{ if .Isotopes }}
+                        <div class="isotopes">{{ .Isotopes }}</div>
+                        {{ end }}
+                        {{ if .MaterialDescription }}
+                        <div class="material-description">
+                            {{ .MaterialDescription }}
+                        </div>
+                        {{ end }}
+                        <span class="details-link">Подробнее</span>
+                    </div>
+                </a>
+            </li>
+            {{ end }}
+        {{ else }}
+            <li class="no-orders">Нет материалов для отображения.</li>
+        {{ end }}
+    </ul>
+   
+    <footer>
+        <a href="/datinganalysisrequest/{{ .currentDatingID }}" class="cart">
+            <img src="http://localhost:9000/genreanalysis/img/footer.png" alt="Датирование" class="cart-image">
+            {{ if gt .DatingCount 0 }}
+            <div class="cart-count">{{ .DatingCount }}</div>
+            {{ end }}
+        </a>
+    </footer>
+</body>
+</html>
