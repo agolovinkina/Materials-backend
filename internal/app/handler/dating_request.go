@@ -10,16 +10,16 @@ import (
 )
 
 type UpdateDatingRequestRequest struct {
-	Region         string `json:"region"`
-	ExpeditionDate string `json:"expedition_date"` // ИЗМЕНИЛИ НА string
-	CarbonAge      string `json:"carbon_age"`
+	Region         string `json:"region" binding:"required"`
+	ExpeditionDate string `json:"expedition_date" binding:"required"`
+	CarbonAgeValue int    `json:"carbon_age_value" binding:"required"`
+	CarbonAgeError int    `json:"carbon_age_error" binding:"required"`
 }
 
 type ProcessDatingRequestRequest struct {
-	Action string `json:"action" binding:"required"` // "complete" или "reject"
+	Action string `json:"action" binding:"required"`
 }
 
-// GetDatingRequests - метод 8
 func (h *Handler) GetDatingRequests(ctx *gin.Context) {
 	status := ctx.Query("status")
 	startDateStr := ctx.Query("start_date")
@@ -53,7 +53,6 @@ func (h *Handler) GetDatingRequests(ctx *gin.Context) {
 	h.successResponse(ctx, requests)
 }
 
-// GetDatingRequestByID - метод 9
 func (h *Handler) GetDatingRequestByID(ctx *gin.Context) {
 	strID := ctx.Param("id")
 	id, err := strconv.Atoi(strID)
@@ -71,7 +70,6 @@ func (h *Handler) GetDatingRequestByID(ctx *gin.Context) {
 	h.successResponse(ctx, request)
 }
 
-// UpdateDatingRequest - метод 10
 func (h *Handler) UpdateDatingRequest(ctx *gin.Context) {
 	strID := ctx.Param("id")
 	id, err := strconv.Atoi(strID)
@@ -86,21 +84,37 @@ func (h *Handler) UpdateDatingRequest(ctx *gin.Context) {
 		return
 	}
 
-	updates := make(map[string]interface{})
-	if req.Region != "" {
-		updates["region"] = req.Region
+	if req.Region == "" {
+		h.errorHandler(ctx, http.StatusBadRequest, fmt.Errorf("регион обязателен для заполнения"))
+		return
 	}
-	if req.ExpeditionDate != "" {
-		// Парсим дату из строки
-		expeditionDate, err := time.Parse("2006-01-02", req.ExpeditionDate)
-		if err != nil {
-			h.errorHandler(ctx, http.StatusBadRequest, fmt.Errorf("неверный формат даты. Используйте YYYY-MM-DD"))
-			return
-		}
-		updates["expedition_date"] = expeditionDate
+
+	if req.ExpeditionDate == "" {
+		h.errorHandler(ctx, http.StatusBadRequest, fmt.Errorf("дата экспедиции обязательна для заполнения"))
+		return
 	}
-	if req.CarbonAge != "" {
-		updates["carbon_age"] = req.CarbonAge
+
+	if req.CarbonAgeValue <= 0 {
+		h.errorHandler(ctx, http.StatusBadRequest, fmt.Errorf("возраст должен быть положительным числом"))
+		return
+	}
+
+	if req.CarbonAgeError <= 0 {
+		h.errorHandler(ctx, http.StatusBadRequest, fmt.Errorf("погрешность должна быть положительным числом"))
+		return
+	}
+
+	expeditionDate, err := time.Parse("2006-01-02", req.ExpeditionDate)
+	if err != nil {
+		h.errorHandler(ctx, http.StatusBadRequest, fmt.Errorf("неверный формат даты. Используйте YYYY-MM-DD"))
+		return
+	}
+
+	updates := map[string]interface{}{
+		"region":           req.Region,
+		"expedition_date":  expeditionDate,
+		"carbon_age_value": req.CarbonAgeValue,
+		"carbon_age_error": req.CarbonAgeError,
 	}
 
 	err = h.Repository.UpdateDatingRequest(uint(id), updates)
@@ -110,16 +124,42 @@ func (h *Handler) UpdateDatingRequest(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
-		"status": "success",
+		"status":  "success",
+		"message": "Данные заявки успешно обновлены",
 	})
 }
 
-// FormDatingRequest - метод 11
 func (h *Handler) FormDatingRequest(ctx *gin.Context) {
 	strID := ctx.Param("id")
 	id, err := strconv.Atoi(strID)
 	if err != nil {
 		h.errorHandler(ctx, http.StatusBadRequest, err)
+		return
+	}
+
+	request, err := h.Repository.GetDatingRequestByID(uint(id))
+	if err != nil {
+		h.errorHandler(ctx, http.StatusNotFound, err)
+		return
+	}
+
+	if request.Region == "" {
+		h.errorHandler(ctx, http.StatusBadRequest, fmt.Errorf("нельзя сформировать заявку без указания региона"))
+		return
+	}
+
+	if request.ExpeditionDate.IsZero() {
+		h.errorHandler(ctx, http.StatusBadRequest, fmt.Errorf("нельзя сформировать заявку без указания даты экспедиции"))
+		return
+	}
+
+	if request.CarbonAgeValue == 0 {
+		h.errorHandler(ctx, http.StatusBadRequest, fmt.Errorf("нельзя сформировать заявку без указания радиоуглеродного возраста"))
+		return
+	}
+
+	if len(request.RequestMaterials) == 0 {
+		h.errorHandler(ctx, http.StatusBadRequest, fmt.Errorf("нельзя сформировать заявку без материалов"))
 		return
 	}
 
@@ -130,11 +170,11 @@ func (h *Handler) FormDatingRequest(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
-		"status": "success",
+		"status":  "success",
+		"message": "Заявка успешно сформирована",
 	})
 }
 
-// ProcessDatingRequest - метод 12
 func (h *Handler) ProcessDatingRequest(ctx *gin.Context) {
 	strID := ctx.Param("id")
 	id, err := strconv.Atoi(strID)
@@ -149,37 +189,52 @@ func (h *Handler) ProcessDatingRequest(ctx *gin.Context) {
 		return
 	}
 
-	// Получаем заявку для расчета календарной даты
 	request, err := h.Repository.GetDatingRequestByID(uint(id))
 	if err != nil {
 		h.errorHandler(ctx, http.StatusNotFound, err)
 		return
 	}
 
-	var calendarDate string
+	var calendarYear, calendarError int
+
 	if req.Action == "complete" {
-		// Рассчитываем календарную дату на основе радиоуглеродного анализа
-		calendarDate, err = h.CalcService.CalculateCalendarDate(request.CarbonAge, request.Region)
+		carbonAgeStr := fmt.Sprintf("%d ± %d BP", request.CarbonAgeValue, request.CarbonAgeError)
+
+		result, err := h.CalcService.CalculateProbability(carbonAgeStr, request.Region)
 		if err != nil {
 			h.errorHandler(ctx, http.StatusInternalServerError, err)
 			return
 		}
+		calendarYear = result.Year
+		calendarError = result.ErrorRange
 	}
 
 	moderatorID := h.getCurrentModeratorID()
-	err = h.Repository.ProcessDatingRequest(uint(id), moderatorID, req.Action, calendarDate)
+	err = h.Repository.ProcessDatingRequest(uint(id), moderatorID, req.Action, calendarYear, calendarError)
 	if err != nil {
 		h.errorHandler(ctx, http.StatusInternalServerError, err)
 		return
 	}
 
+	formattedDate := ""
+	if calendarYear != 0 {
+		era := "AD"
+		year := calendarYear
+		if calendarYear < 0 {
+			era = "BC"
+			year = -calendarYear
+		}
+		formattedDate = fmt.Sprintf("%d %s ± %d лет", year, era, calendarError)
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{
-		"status":        "success",
-		"calendar_date": calendarDate,
+		"status":         "success",
+		"calendar_year":  calendarYear,
+		"calendar_error": calendarError,
+		"formatted_date": formattedDate,
 	})
 }
 
-// DeleteDatingRequest - метод 13
 func (h *Handler) DeleteDatingRequest(ctx *gin.Context) {
 	strID := ctx.Param("id")
 	id, err := strconv.Atoi(strID)
@@ -199,7 +254,6 @@ func (h *Handler) DeleteDatingRequest(ctx *gin.Context) {
 	})
 }
 
-// RemoveMaterialFromRequest - метод 14
 func (h *Handler) RemoveMaterialFromRequest(ctx *gin.Context) {
 	requestIDStr := ctx.Param("requestId")
 	materialIDStr := ctx.Param("materialId")
@@ -223,7 +277,6 @@ func (h *Handler) RemoveMaterialFromRequest(ctx *gin.Context) {
 	})
 }
 
-// UpdateRequestMaterial - метод 15
 func (h *Handler) UpdateRequestMaterial(ctx *gin.Context) {
 	requestIDStr := ctx.Param("requestId")
 	materialIDStr := ctx.Param("materialId")

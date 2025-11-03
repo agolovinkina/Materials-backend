@@ -9,21 +9,23 @@ import (
 )
 
 type Handler struct {
-	Repository  *repository.Repository
-	CalcService *service.CalendarDateCalculator
+	Repository   *repository.Repository
+	CalcService  *service.CalendarDateCalculator
+	MinIOService *service.MinIOService
 }
 
-func NewHandler(r *repository.Repository, calcService *service.CalendarDateCalculator) *Handler {
+func NewHandler(r *repository.Repository, calcService *service.CalendarDateCalculator, minioService *service.MinIOService) *Handler {
 	return &Handler{
-		Repository:  r,
-		CalcService: calcService,
+		Repository:   r,
+		CalcService:  calcService,
+		MinIOService: minioService,
 	}
 }
 
 func (h *Handler) RegisterHandler(router *gin.Engine) {
 	api := router.Group("/api")
 	{
-		// Домен услуги (6 методов)
+		// Материалы (6 методов)
 		api.GET("/materials", h.GetAllMaterials)
 		api.GET("/materials/:id", h.GetMaterialByID)
 		api.POST("/materials", h.CreateMaterial)
@@ -31,7 +33,10 @@ func (h *Handler) RegisterHandler(router *gin.Engine) {
 		api.DELETE("/materials/:id", h.DeleteMaterial)
 		api.POST("/materials/:id/image", h.UploadMaterialImage)
 
-		// Домен заявки
+		// Тестовый endpoint
+		api.POST("/test-upload", h.TestFileUpload)
+
+		// Заявки
 		api.GET("/dating/cart/icon", h.GetDatingCartIcon)
 		api.GET("/dating/cart", h.GetDatingCart)
 		api.GET("/dating/requests", h.GetDatingRequests)
@@ -54,7 +59,7 @@ func (h *Handler) RegisterHandler(router *gin.Engine) {
 			datingGroup.POST("/cart/materials", h.AddMaterialToDatingCart)
 		}
 
-		// Домен пользователь (5 методов)
+		// Пользователь (5 методов)
 		api.POST("/user/register", h.RegisterUser)
 		api.GET("/user/profile", h.GetProfile)
 		api.PUT("/user/profile", h.UpdateProfile)
@@ -81,7 +86,6 @@ func (h *Handler) successResponse(ctx *gin.Context, data interface{}) {
 	})
 }
 
-// Временная функция для имитации авторизации
 func (h *Handler) getCurrentUserID() int {
 	return 1
 }

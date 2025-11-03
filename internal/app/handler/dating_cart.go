@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -10,7 +11,6 @@ type AddMaterialToCartRequest struct {
 	MaterialID uint `json:"material_id" binding:"required"`
 }
 
-// GetDatingCartIcon - метод 7
 func (h *Handler) GetDatingCartIcon(ctx *gin.Context) {
 	userID := h.getCurrentUserID()
 
@@ -27,7 +27,6 @@ func (h *Handler) GetDatingCartIcon(ctx *gin.Context) {
 	h.successResponse(ctx, response)
 }
 
-// GetDatingCart - новый метод для получения черновика заявки
 func (h *Handler) GetDatingCart(ctx *gin.Context) {
 	userID := h.getCurrentUserID()
 
@@ -40,7 +39,6 @@ func (h *Handler) GetDatingCart(ctx *gin.Context) {
 	h.successResponse(ctx, request)
 }
 
-// AddMaterialToDatingCart - метод 21
 func (h *Handler) AddMaterialToDatingCart(ctx *gin.Context) {
 	userID := h.getCurrentUserID()
 
@@ -50,23 +48,24 @@ func (h *Handler) AddMaterialToDatingCart(ctx *gin.Context) {
 		return
 	}
 
-	// Получаем материал для расчета вероятности
+	fmt.Printf("DEBUG: Adding material %d to cart for user %d\n", req.MaterialID, userID)
+
 	material, err := h.Repository.GetMaterialByID(req.MaterialID)
 	if err != nil {
+		fmt.Printf("DEBUG: Material not found: %v\n", err)
 		h.errorHandler(ctx, http.StatusNotFound, err)
 		return
 	}
 
-	// Рассчитываем вероятность на основе характеристик материала
-	probability := h.CalcService.CalculateProbability(1.0, material.Isotopes, material.SampleRequirements)
+	fmt.Printf("DEBUG: Material found: %s\n", material.MaterialName)
 
 	err = h.Repository.AddMaterialToDatingRequest(userID, req.MaterialID,
-		"", // пустой комментарий
-		probability,
+		"",
 		"Образец для радиоуглеродного анализа",
-		1.0) // стандартный вес
+		1.0)
 
 	if err != nil {
+		fmt.Printf("DEBUG: Error adding material to request: %v\n", err)
 		if err.Error() == "материал уже добавлен в заявку" {
 			ctx.JSON(http.StatusConflict, gin.H{
 				"status":  "error",
@@ -78,7 +77,10 @@ func (h *Handler) AddMaterialToDatingCart(ctx *gin.Context) {
 		return
 	}
 
+	fmt.Printf("DEBUG: Material successfully added to cart\n")
+
 	ctx.JSON(http.StatusCreated, gin.H{
-		"status": "success",
+		"status":  "success",
+		"message": "Материал успешно добавлен в заявку",
 	})
 }

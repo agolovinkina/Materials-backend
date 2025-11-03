@@ -148,7 +148,7 @@ func (h *Handler) DeleteMaterial(ctx *gin.Context) {
 	ctx.Status(http.StatusNoContent)
 }
 
-// UploadMaterialImage - метод 6
+// UploadMaterialImage - метод 6 (локальное хранилище)
 func (h *Handler) UploadMaterialImage(ctx *gin.Context) {
 	strID := ctx.Param("id")
 	id, err := strconv.Atoi(strID)
@@ -170,24 +170,25 @@ func (h *Handler) UploadMaterialImage(ctx *gin.Context) {
 		return
 	}
 
-	// Генерируем уникальное имя файла
-	fileExt := filepath.Ext(file.Filename)
-	fileName := fmt.Sprintf("material_%d_%d%s", id, time.Now().Unix(), fileExt)
-
-	// Сохраняем файл (временная реализация - сохраняем локально)
+	// Создаем папку для загрузок
 	uploadPath := "./uploads/materials/"
 	if err := os.MkdirAll(uploadPath, 0755); err != nil {
 		h.errorHandler(ctx, http.StatusInternalServerError, err)
 		return
 	}
 
+	// Генерируем уникальное имя файла
+	fileExt := filepath.Ext(file.Filename)
+	fileName := fmt.Sprintf("material_%d_%d%s", id, time.Now().Unix(), fileExt)
 	filePath := filepath.Join(uploadPath, fileName)
+
+	// Сохраняем файл
 	if err := ctx.SaveUploadedFile(file, filePath); err != nil {
 		h.errorHandler(ctx, http.StatusInternalServerError, err)
 		return
 	}
 
-	// Формируем URL (в продакшене нужно использовать CDN/Minio)
+	// Формируем URL
 	imageURL := fmt.Sprintf("/static/uploads/materials/%s", fileName)
 
 	// Обновляем материал в БД
@@ -203,6 +204,40 @@ func (h *Handler) UploadMaterialImage(ctx *gin.Context) {
 		"status":    "success",
 		"image_url": imageURL,
 		"message":   "Изображение успешно загружено",
+	})
+}
+
+// TestFileUpload - для отладки загрузки файлов
+func (h *Handler) TestFileUpload(ctx *gin.Context) {
+	fmt.Println("DEBUG: TestFileUpload called")
+
+	// Получаем форму
+	form, err := ctx.MultipartForm()
+	if err != nil {
+		fmt.Printf("DEBUG: MultipartForm error: %v\n", err)
+		ctx.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Проверяем файлы
+	files := form.File["image"]
+	fmt.Printf("DEBUG: Files in form: %d\n", len(files))
+
+	if len(files) == 0 {
+		// Проверим все поля формы
+		fmt.Printf("DEBUG: All form fields: %+v\n", form.Value)
+		ctx.JSON(400, gin.H{"error": "No files received", "form_fields": form.Value})
+		return
+	}
+
+	for i, file := range files {
+		fmt.Printf("DEBUG: File %d: %s, Size: %d\n", i, file.Filename, file.Size)
+	}
+
+	ctx.JSON(200, gin.H{
+		"message":     "test successful",
+		"files_count": len(files),
+		"files":       files,
 	})
 }
 

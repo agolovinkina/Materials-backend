@@ -14,9 +14,8 @@ type MaterialAnalysisRequest struct {
 	ModeratorID      *uint
 	Region           string            `gorm:"type:varchar(200);not null"`
 	ExpeditionDate   time.Time         `gorm:"type:date;not null"`
-	CarbonAge        string            `gorm:"type:varchar(100)"`
+	CarbonAgeValue   int               `gorm:"type:integer;not null;default:0"`
+	CarbonAgeError   int               `gorm:"type:integer;not null;default:0"`
 	TotalPrice       float64           `gorm:"type:decimal(10,2)"`
 	RequestMaterials []RequestMaterial `gorm:"foreignKey:RequestID"`
-	Creator          User              `gorm:"foreignKey:CreatorID"`
-	Moderator        User              `gorm:"foreignKey:ModeratorID"`
 }

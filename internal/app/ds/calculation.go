@@ -1,7 +1,6 @@
 package ds
 
 import (
-	"fmt"
 	"math"
 )
 
@@ -15,10 +14,11 @@ type CarbonDatingCalculation struct {
 
 // CarbonDatingResult - результат расчета
 type CarbonDatingResult struct {
-	CarbonAge       string  `json:"carbon_age"`
-	AgeYears        float64 `json:"age_years"`
-	ErrorRange      float64 `json:"error_range"`
-	ConfidenceLevel float64 `json:"confidence_level"`
+	AgeYears        float64 `json:"age_years"`        // Основной возраст в годах (float)
+	AgeValue        int     `json:"age_value"`        // Целое значение возраста (3450)
+	ErrorRange      float64 `json:"error_range"`      // Значение погрешности в годах (float)
+	ErrorValue      int     `json:"error_value"`      // Целое значение погрешности (30)
+	ConfidenceLevel float64 `json:"confidence_level"` // Уровень достоверности
 }
 
 // CalculateCarbonAge - расчет радиоуглеродного возраста
@@ -32,9 +32,10 @@ func (c *CarbonDatingCalculation) CalculateCarbonAge() CarbonDatingResult {
 
 	if c.ModernStandard == 0 {
 		return CarbonDatingResult{
-			CarbonAge:       "не определен",
 			AgeYears:        0,
+			AgeValue:        0,
 			ErrorRange:      0,
+			ErrorValue:      0,
 			ConfidenceLevel: 0,
 		}
 	}
@@ -49,11 +50,23 @@ func (c *CarbonDatingCalculation) CalculateCarbonAge() CarbonDatingResult {
 	errorRange := c.calculateError(age, activityRatio)
 	confidenceLevel := c.calculateConfidenceLevel(activityRatio, c.MeasurementError)
 
+	ageValue := int(math.Round(age))
+	errorValue := int(math.Round(errorRange))
+
+	// Корректируем ошибку в пределах разумного
+	if errorValue < 10 {
+		errorValue = 10
+	}
+	if errorValue > 100 {
+		errorValue = 100
+	}
+
 	return CarbonDatingResult{
 		AgeYears:        age,
+		AgeValue:        ageValue,
 		ErrorRange:      errorRange,
+		ErrorValue:      errorValue,
 		ConfidenceLevel: confidenceLevel,
-		CarbonAge:       formatCarbonAge(age, errorRange),
 	}
 }
 
@@ -79,16 +92,4 @@ func (c *CarbonDatingCalculation) calculateConfidenceLevel(activityRatio, measur
 		return 0.1
 	}
 	return confidence
-}
-
-func formatCarbonAge(age, errorRange float64) string {
-	ageInt := int(math.Round(age))
-	errorInt := int(math.Round(errorRange))
-	if errorInt < 10 {
-		errorInt = 10
-	}
-	if errorInt > 100 {
-		errorInt = 100
-	}
-	return fmt.Sprintf("%d ± %d BP", ageInt, errorInt)
 }

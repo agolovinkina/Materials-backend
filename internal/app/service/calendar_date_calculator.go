@@ -5,40 +5,120 @@ import (
 	"math"
 	"regexp"
 	"strconv"
-	"strings"
 )
 
-type CalendarDateCalculator struct{}
+type CalendarDateCalculator struct {
+	regionalData map[string]struct {
+		DeltaR      float64
+		SigmaDeltaR float64
+	}
+}
+
+type CalendarDateResult struct {
+	FormattedDate string `json:"formatted_date"`
+	Year          int    `json:"year"`
+	ErrorRange    int    `json:"error_range"`
+	Era           string `json:"era"`
+}
 
 func NewCalendarDateCalculator() *CalendarDateCalculator {
-	return &CalendarDateCalculator{}
+	calculator := &CalendarDateCalculator{}
+	calculator.initializeRegionalData()
+	return calculator
 }
 
-// CalculateCalendarDate рассчитывает календарную дату на основе радиоуглеродного возраста
-// carbonAge в формате "3450 ± 30 BP"
-// region для учета региональных вариаций
-func (c *CalendarDateCalculator) CalculateCalendarDate(carbonAge string, region string) (string, error) {
-	// Парсим радиоуглеродный возраст
-	years, uncertainty, err := c.parseCarbonAge(carbonAge)
+func (c *CalendarDateCalculator) initializeRegionalData() {
+	c.regionalData = map[string]struct {
+		DeltaR      float64
+		SigmaDeltaR float64
+	}{
+		"Северная Атлантика (открытый океан)":  {400, 20},
+		"Северная Атлантика (прибрежные зоны)": {200, 35},
+		"Северное море":                 {150, 30},
+		"Норвежское море":               {350, 30},
+		"Баренцево море":                {400, 40},
+		"Балтийское море (южная часть)": {300, 40},
+		"Балтийское море (северная часть, Ботнический залив)": {500, 50},
+		"Средиземное море (западная часть)":                   {50, 20},
+		"Средиземное море (восточная часть)":                  {200, 30},
+		"Эгейское море":                               {180, 30},
+		"Чёрное море":                                 {525, 40},
+		"Карибское море":                              {65, 25},
+		"Мексиканский залив":                          {200, 30},
+		"Тихий океан (тропики, запад)":                {200, 30},
+		"Тихий океан (северо-запад, Охотское море)":   {700, 50},
+		"Тихий океан (северо-восток, Берингово море)": {700, 40},
+		"Тихий океан (южная часть)":                   {400, 40},
+		"Индийский океан (север)":                     {150, 30},
+		"Индийский океан (юг)":                        {400, 30},
+		"Южный океан (Антарктика)":                    {1150, 60},
+	}
+}
+
+func (c *CalendarDateCalculator) CalculateCalendarDate(carbonAgeStr string, region string) (*CalendarDateResult, error) {
+	R, sigmaR, err := c.parseCarbonAge(carbonAgeStr)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	// Применяем калибровочную кривую
-	calibratedYears := c.applyCalibrationCurve(years)
+	regionalParams, exists := c.regionalData[region]
+	if !exists {
+		return nil, fmt.Errorf("регион '%s' не найден в базе данных", region)
+	}
 
-	// Учитываем неопределенность
-	finalYears := c.applyUncertainty(calibratedYears, uncertainty)
+	DeltaR := regionalParams.DeltaR
+	sigmaDeltaR := regionalParams.SigmaDeltaR
 
-	// Конвертируем в календарную дату (BC/AD)
-	calendarDate := c.convertToCalendarDate(finalYears)
+	lambda, sigmaLambda := c.getCalibrationParams(R)
 
-	// Форматируем результат
-	return c.formatResult(calendarDate, uncertainty, region), nil
+	t_cal, totalError := c.calculateCalendarDateFormula(R, DeltaR, lambda, sigmaR, sigmaDeltaR, sigmaLambda)
+
+	calendarYear, era := c.convertToCalendarYear(t_cal)
+
+	formattedDate := fmt.Sprintf("%d %s ± %d лет", calendarYear, era, int(math.Round(totalError)))
+	if calendarYear < 0 {
+		formattedDate = fmt.Sprintf("%d %s ± %d лет", -calendarYear, era, int(math.Round(totalError)))
+	}
+
+	return &CalendarDateResult{
+		FormattedDate: formattedDate,
+		Year:          calendarYear,
+		ErrorRange:    int(math.Round(totalError)),
+		Era:           era,
+	}, nil
 }
 
-func (c *CalendarDateCalculator) parseCarbonAge(carbonAge string) (int, int, error) {
-	// Регулярное выражение для парсинга "3450 ± 30 BP"
+func (c *CalendarDateCalculator) calculateCalendarDateFormula(R, DeltaR, lambda, sigmaR, sigmaDeltaR, sigmaLambda float64) (float64, float64) {
+	t_cal := 1950 - (R-DeltaR)/lambda
+
+	errorTerm1 := math.Pow(sigmaR, 2)
+	errorTerm2 := math.Pow(sigmaDeltaR, 2)
+	errorTerm3 := math.Pow((R-DeltaR)/math.Pow(lambda, 2), 2) * math.Pow(sigmaLambda, 2)
+	totalError := math.Sqrt(errorTerm1 + errorTerm2 + errorTerm3)
+
+	return t_cal, totalError
+}
+
+func (c *CalendarDateCalculator) getCalibrationParams(R float64) (float64, float64) {
+	switch {
+	case R <= 150:
+		return 1.00, 0.02
+	case R <= 1000:
+		return 1.005, 0.005
+	case R <= 2000:
+		return 1.025, 0.005
+	case R <= 2500:
+		return 1.035, 0.005
+	case R <= 3500:
+		return 1.045, 0.005
+	case R <= 6000:
+		return 1.055, 0.005
+	default:
+		return 1.06, 0.01
+	}
+}
+
+func (c *CalendarDateCalculator) parseCarbonAge(carbonAge string) (float64, float64, error) {
 	re := regexp.MustCompile(`(\d+)\s*±\s*(\d+)\s*BP`)
 	matches := re.FindStringSubmatch(carbonAge)
 
@@ -46,8 +126,8 @@ func (c *CalendarDateCalculator) parseCarbonAge(carbonAge string) (int, int, err
 		return 0, 0, fmt.Errorf("неверный формат радиоуглеродного возраста: %s", carbonAge)
 	}
 
-	years, err1 := strconv.Atoi(matches[1])
-	uncertainty, err2 := strconv.Atoi(matches[2])
+	years, err1 := strconv.ParseFloat(matches[1], 64)
+	uncertainty, err2 := strconv.ParseFloat(matches[2], 64)
 
 	if err1 != nil || err2 != nil {
 		return 0, 0, fmt.Errorf("ошибка парсинга чисел в радиоуглеродном возрасте")
@@ -56,119 +136,16 @@ func (c *CalendarDateCalculator) parseCarbonAge(carbonAge string) (int, int, err
 	return years, uncertainty, nil
 }
 
-func (c *CalendarDateCalculator) applyCalibrationCurve(years int) float64 {
-	// Упрощенная калибровочная кривая на основе INTCAL20
-	// Для реального применения нужно использовать библиотеку калибровки
-	baseYears := float64(years)
+func (c *CalendarDateCalculator) convertToCalendarYear(t_cal float64) (int, string) {
+	year := int(math.Round(t_cal))
 
-	// Нелинейная калибровка (упрощенная модель)
-	if baseYears < 1000 {
-		return baseYears * 0.95
-	} else if baseYears < 5000 {
-		return baseYears * 1.1
+	if year >= 0 {
+		return year, "AD"
 	} else {
-		return baseYears * 1.25
+		return year, "BC"
 	}
 }
 
-func (c *CalendarDateCalculator) applyUncertainty(calibratedYears float64, uncertainty int) float64 {
-	// Учитываем неопределенность как стандартное отклонение
-	uncertaintyFactor := float64(uncertainty) * 1.5
-	return calibratedYears + uncertaintyFactor
-}
-
-func (c *CalendarDateCalculator) convertToCalendarDate(years float64) int {
-	// Конвертируем радиоуглеродные годы в календарные годы BC/AD
-	// 1950 год - это "present" в радиоуглеродном датировании
-	const referenceYear = 1950
-	calendarYear := referenceYear - int(math.Round(years))
-
-	return calendarYear
-}
-
-func (c *CalendarDateCalculator) formatResult(calendarYear int, uncertainty int, region string) string {
-	var era string
-	var displayYear int
-
-	if calendarYear >= 0 {
-		era = "AD"
-		displayYear = calendarYear
-	} else {
-		era = "BC"
-		displayYear = -calendarYear
-	}
-
-	// Учитываем региональные особенности
-	regionalAdjustment := c.getRegionalAdjustment(region)
-	if regionalAdjustment != 0 {
-		displayYear += regionalAdjustment
-		if displayYear < 0 {
-			era = "BC"
-			displayYear = -displayYear
-		}
-	}
-
-	return fmt.Sprintf("%d %s ± %d лет", displayYear, era, uncertainty)
-}
-
-func (c *CalendarDateCalculator) getRegionalAdjustment(region string) int {
-	// Региональные поправки для разных географических зон
-	adjustments := map[string]int{
-		"Балтийское море":  -25,
-		"Северная Европа":  -20,
-		"Средиземноморье":  15,
-		"Ближний Восток":   25,
-		"Центральная Азия": 10,
-		"Восточная Азия":   5,
-		"Северная Америка": -15,
-		"Южная Америка":    0,
-	}
-
-	if adjustment, exists := adjustments[region]; exists {
-		return adjustment
-	}
-	return 0
-}
-
-// CalculateProbability рассчитывает вероятность соответствия материала
-func (c *CalendarDateCalculator) CalculateProbability(sampleWeight float64, isotopes string, requirements string) int {
-	// Проверяем соответствие веса требованиям
-	weightScore := c.calculateWeightScore(sampleWeight)
-
-	// Проверяем наличие необходимых изотопов
-	isotopeScore := c.calculateIsotopeScore(isotopes)
-
-	// Общая вероятность
-	totalScore := (weightScore + isotopeScore) / 2
-
-	return int(math.Round(totalScore * 100))
-}
-
-func (c *CalendarDateCalculator) calculateWeightScore(weight float64) float64 {
-	// Идеальный вес образца: 1-5 грамм
-	if weight >= 1.0 && weight <= 5.0 {
-		return 1.0
-	} else if weight >= 0.5 && weight < 1.0 {
-		return 0.7
-	} else if weight > 5.0 && weight <= 10.0 {
-		return 0.8
-	} else if weight > 0.1 && weight < 0.5 {
-		return 0.4
-	} else {
-		return 0.1
-	}
-}
-
-func (c *CalendarDateCalculator) calculateIsotopeScore(isotopes string) float64 {
-	// Проверяем наличие ключевых изотопов для радиоуглеродного анализа
-	requiredIsotopes := []string{"C14", "C13", "C12"}
-	foundCount := 0
-
-	for _, isotope := range requiredIsotopes {
-		if strings.Contains(strings.ToUpper(isotopes), isotope) {
-			foundCount++
-		}
-	}
-
-	return float64(foundCount) / float64(len(requiredIsotopes))
+func (c *CalendarDateCalculator) CalculateProbability(carbonAgeStr string, region string) (*CalendarDateResult, error) {
+	return c.CalculateCalendarDate(carbonAgeStr, region)
 }
