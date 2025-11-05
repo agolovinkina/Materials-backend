@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"lr2/internal/app/ds"
+	"lr4/internal/app/ds"
 
 	"github.com/gin-gonic/gin"
 )
@@ -28,7 +28,15 @@ type UpdateMaterialRequest struct {
 	SampleRequirements  string `json:"sample_requirements"`
 }
 
-// GetAllMaterials - метод 1
+// GetAllMaterials получает все материалы
+// @Summary Get all materials
+// @Description Get all materials with optional search
+// @Tags Materials
+// @Produce json
+// @Param search query string false "Search query"
+// @Success 200 {object} map[string]interface{} "Success response with materials array"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /materials [get]
 func (h *Handler) GetAllMaterials(ctx *gin.Context) {
 	searchQuery := ctx.Query("search")
 
@@ -49,7 +57,16 @@ func (h *Handler) GetAllMaterials(ctx *gin.Context) {
 	h.successResponse(ctx, materials)
 }
 
-// GetMaterialByID - метод 2
+// GetMaterialByID получает материал по ID
+// @Summary Get material by ID
+// @Description Get material details by ID
+// @Tags Materials
+// @Produce json
+// @Param id path int true "Material ID"
+// @Success 200 {object} map[string]interface{} "Success response with material"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 404 {object} map[string]interface{} "Material not found"
+// @Router /materials/{id} [get]
 func (h *Handler) GetMaterialByID(ctx *gin.Context) {
 	strID := ctx.Param("id")
 	id, err := strconv.Atoi(strID)
@@ -67,7 +84,18 @@ func (h *Handler) GetMaterialByID(ctx *gin.Context) {
 	h.successResponse(ctx, material)
 }
 
-// CreateMaterial - метод 3
+// CreateMaterial создает новый материал
+// @Summary Create material
+// @Description Create new material (admin only)
+// @Tags Materials
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param material body CreateMaterialRequest true "Material data"
+// @Success 201 {object} map[string]interface{} "Material created successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /materials [post]
 func (h *Handler) CreateMaterial(ctx *gin.Context) {
 	var req CreateMaterialRequest
 	if err := ctx.BindJSON(&req); err != nil {
@@ -92,7 +120,19 @@ func (h *Handler) CreateMaterial(ctx *gin.Context) {
 	h.successResponse(ctx, material)
 }
 
-// UpdateMaterial - метод 4
+// UpdateMaterial обновляет материал
+// @Summary Update material
+// @Description Update material by ID (admin only)
+// @Tags Materials
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path int true "Material ID"
+// @Param material body UpdateMaterialRequest true "Material update data"
+// @Success 204 "Material updated successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /materials/{id} [put]
 func (h *Handler) UpdateMaterial(ctx *gin.Context) {
 	strID := ctx.Param("id")
 	id, err := strconv.Atoi(strID)
@@ -130,7 +170,16 @@ func (h *Handler) UpdateMaterial(ctx *gin.Context) {
 	ctx.Status(http.StatusNoContent)
 }
 
-// DeleteMaterial - метод 5
+// DeleteMaterial удаляет материал
+// @Summary Delete material
+// @Description Delete material by ID (admin only)
+// @Tags Materials
+// @Security BearerAuth
+// @Param id path int true "Material ID"
+// @Success 204 "Material deleted successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /materials/{id} [delete]
 func (h *Handler) DeleteMaterial(ctx *gin.Context) {
 	strID := ctx.Param("id")
 	id, err := strconv.Atoi(strID)
@@ -148,7 +197,19 @@ func (h *Handler) DeleteMaterial(ctx *gin.Context) {
 	ctx.Status(http.StatusNoContent)
 }
 
-// UploadMaterialImage - метод 6 (локальное хранилище)
+// UploadMaterialImage загружает изображение для материала
+// @Summary Upload material image
+// @Description Upload image for material (admin only)
+// @Tags Materials
+// @Security BearerAuth
+// @Accept multipart/form-data
+// @Produce json
+// @Param id path int true "Material ID"
+// @Param image formData file true "Image file"
+// @Success 200 {object} map[string]interface{} "Image uploaded successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /materials/{id}/image [post]
 func (h *Handler) UploadMaterialImage(ctx *gin.Context) {
 	strID := ctx.Param("id")
 	id, err := strconv.Atoi(strID)
@@ -157,44 +218,36 @@ func (h *Handler) UploadMaterialImage(ctx *gin.Context) {
 		return
 	}
 
-	// Получаем файл из формы
 	file, err := ctx.FormFile("image")
 	if err != nil {
 		h.errorHandler(ctx, http.StatusBadRequest, fmt.Errorf("ошибка получения файла: %w", err))
 		return
 	}
 
-	// Проверяем тип файла
 	if !isImageFile(file) {
 		h.errorHandler(ctx, http.StatusBadRequest, fmt.Errorf("файл должен быть изображением (JPEG, PNG, GIF)"))
 		return
 	}
 
-	// Создаем папку для загрузок
 	uploadPath := "./uploads/materials/"
 	if err := os.MkdirAll(uploadPath, 0755); err != nil {
 		h.errorHandler(ctx, http.StatusInternalServerError, err)
 		return
 	}
 
-	// Генерируем уникальное имя файла
 	fileExt := filepath.Ext(file.Filename)
 	fileName := fmt.Sprintf("material_%d_%d%s", id, time.Now().Unix(), fileExt)
 	filePath := filepath.Join(uploadPath, fileName)
 
-	// Сохраняем файл
 	if err := ctx.SaveUploadedFile(file, filePath); err != nil {
 		h.errorHandler(ctx, http.StatusInternalServerError, err)
 		return
 	}
 
-	// Формируем URL
 	imageURL := fmt.Sprintf("/static/uploads/materials/%s", fileName)
 
-	// Обновляем материал в БД
 	err = h.Repository.UpdateMaterialImage(uint(id), imageURL)
 	if err != nil {
-		// Удаляем загруженный файл в случае ошибки
 		os.Remove(filePath)
 		h.errorHandler(ctx, http.StatusInternalServerError, err)
 		return
@@ -207,11 +260,19 @@ func (h *Handler) UploadMaterialImage(ctx *gin.Context) {
 	})
 }
 
-// TestFileUpload - для отладки загрузки файлов
+// TestFileUpload тестовый endpoint для загрузки файлов
+// @Summary Test file upload
+// @Description Test endpoint for file upload debugging
+// @Tags Debug
+// @Accept multipart/form-data
+// @Produce json
+// @Param image formData file true "Test file"
+// @Success 200 {object} map[string]interface{} "Test successful"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Router /test-upload [post]
 func (h *Handler) TestFileUpload(ctx *gin.Context) {
 	fmt.Println("DEBUG: TestFileUpload called")
 
-	// Получаем форму
 	form, err := ctx.MultipartForm()
 	if err != nil {
 		fmt.Printf("DEBUG: MultipartForm error: %v\n", err)
@@ -219,12 +280,10 @@ func (h *Handler) TestFileUpload(ctx *gin.Context) {
 		return
 	}
 
-	// Проверяем файлы
 	files := form.File["image"]
 	fmt.Printf("DEBUG: Files in form: %d\n", len(files))
 
 	if len(files) == 0 {
-		// Проверим все поля формы
 		fmt.Printf("DEBUG: All form fields: %+v\n", form.Value)
 		ctx.JSON(400, gin.H{"error": "No files received", "form_fields": form.Value})
 		return
@@ -256,7 +315,6 @@ func isImageFile(file *multipart.FileHeader) bool {
 	}
 	defer fileHeader.Close()
 
-	// Читаем первые 512 байт для определения MIME типа
 	buffer := make([]byte, 512)
 	_, err = fileHeader.Read(buffer)
 	if err != nil {

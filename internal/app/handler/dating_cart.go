@@ -11,8 +11,22 @@ type AddMaterialToCartRequest struct {
 	MaterialID uint `json:"material_id" binding:"required"`
 }
 
+// GetDatingCartIcon получает количество материалов в корзине
+// @Summary Get cart item count
+// @Description Get the number of materials in dating cart
+// @Tags Dating Cart
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} map[string]interface{} "Success response with count"
+// @Failure 401 {object} map[string]interface{} "Unauthorized"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /dating/cart/icon [get]
 func (h *Handler) GetDatingCartIcon(ctx *gin.Context) {
-	userID := h.getCurrentUserID()
+	userID := h.getCurrentUserIDFromContext(ctx)
+	if userID == 0 {
+		h.errorHandler(ctx, http.StatusUnauthorized, fmt.Errorf("пользователь не авторизован"))
+		return
+	}
 
 	count, err := h.Repository.GetDatingCartCount(userID)
 	if err != nil {
@@ -27,8 +41,22 @@ func (h *Handler) GetDatingCartIcon(ctx *gin.Context) {
 	h.successResponse(ctx, response)
 }
 
+// GetDatingCart получает текущую корзину заявок
+// @Summary Get dating cart
+// @Description Get current user's dating cart with materials
+// @Tags Dating Cart
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} map[string]interface{} "Success response with cart data"
+// @Failure 401 {object} map[string]interface{} "Unauthorized"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /dating/cart [get]
 func (h *Handler) GetDatingCart(ctx *gin.Context) {
-	userID := h.getCurrentUserID()
+	userID := h.getCurrentUserIDFromContext(ctx)
+	if userID == 0 {
+		h.errorHandler(ctx, http.StatusUnauthorized, fmt.Errorf("пользователь не авторизован"))
+		return
+	}
 
 	request, err := h.Repository.GetCurrentDatingRequest(userID)
 	if err != nil {
@@ -39,8 +67,27 @@ func (h *Handler) GetDatingCart(ctx *gin.Context) {
 	h.successResponse(ctx, request)
 }
 
+// AddMaterialToDatingCart добавляет материал в корзину
+// @Summary Add material to cart
+// @Description Add material to dating cart
+// @Tags Dating Cart
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param material body AddMaterialToCartRequest true "Material data"
+// @Success 201 {object} map[string]interface{} "Material added successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 401 {object} map[string]interface{} "Unauthorized"
+// @Failure 404 {object} map[string]interface{} "Material not found"
+// @Failure 409 {object} map[string]interface{} "Material already in cart"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /dating/cart/materials [post]
 func (h *Handler) AddMaterialToDatingCart(ctx *gin.Context) {
-	userID := h.getCurrentUserID()
+	userID := h.getCurrentUserIDFromContext(ctx)
+	if userID == 0 {
+		h.errorHandler(ctx, http.StatusUnauthorized, fmt.Errorf("пользователь не авторизован"))
+		return
+	}
 
 	var req AddMaterialToCartRequest
 	if err := ctx.BindJSON(&req); err != nil {

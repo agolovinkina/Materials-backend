@@ -3,8 +3,8 @@ package pkg
 import (
 	"fmt"
 
-	"lr2/internal/app/config"
-	"lr2/internal/app/handler"
+	"lr4/internal/app/config"
+	"lr4/internal/app/handler"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"

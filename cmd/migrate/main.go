@@ -3,8 +3,8 @@ package main
 import (
 	"log"
 
-	"lr2/internal/app/ds"
-	"lr2/internal/app/dsn"
+	"lr4/internal/app/ds"
+	"lr4/internal/app/dsn"
 
 	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"

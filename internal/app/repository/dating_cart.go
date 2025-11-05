@@ -3,7 +3,7 @@ package repository
 import (
 	"errors"
 	"fmt"
-	"lr2/internal/app/ds"
+	"lr4/internal/app/ds"
 	"time"
 
 	"gorm.io/gorm"
@@ -21,18 +21,18 @@ func (r *Repository) CreateDatingRequest(userID int) (*ds.MaterialAnalysisReques
 		TotalPrice:     0.0,
 	}
 
-	err := r.db.Create(newRequest).Error
+	err := r.DB.Create(newRequest).Error
 	if err != nil {
 		return nil, fmt.Errorf("ошибка создания заявки: %w", err)
 	}
 
-	fmt.Printf("DEBUG: Created new dating request with ID: %d for user: %d\n", newRequest.RequestID, userID)
+	fmt.Printf("DEBUG: Created new dating request with ID: %d for user %d\n", newRequest.RequestID, userID)
 	return newRequest, nil
 }
 
 func (r *Repository) GetOrCreateDatingRequest(userID int) (*ds.MaterialAnalysisRequest, error) {
 	var request ds.MaterialAnalysisRequest
-	err := r.db.Where("creator_id = ? AND request_status = 'draft'", userID).First(&request).Error
+	err := r.DB.Where("creator_id = ? AND request_status = 'draft'", userID).First(&request).Error
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -55,7 +55,7 @@ func (r *Repository) AddMaterialToDatingRequest(userID int, materialID uint, com
 	fmt.Printf("DEBUG: Using request ID: %d for user: %d\n", request.RequestID, userID)
 
 	var material ds.Material
-	err = r.db.Where("material_id = ? AND is_deleted = false", materialID).First(&material).Error
+	err = r.DB.Where("material_id = ? AND is_deleted = false", materialID).First(&material).Error
 	if err != nil {
 		return fmt.Errorf("материал не найден: %w", err)
 	}
@@ -63,7 +63,7 @@ func (r *Repository) AddMaterialToDatingRequest(userID int, materialID uint, com
 	fmt.Printf("DEBUG: Material found: %s (ID: %d)\n", material.MaterialName, material.MaterialID)
 
 	var count int64
-	err = r.db.Model(&ds.RequestMaterial{}).
+	err = r.DB.Model(&ds.RequestMaterial{}).
 		Where("request_id = ? AND material_id = ?", request.RequestID, materialID).
 		Count(&count).Error
 	if err != nil {
@@ -85,11 +85,45 @@ func (r *Repository) AddMaterialToDatingRequest(userID int, materialID uint, com
 		IsPrimary:         false,
 	}
 
-	err = r.db.Create(&item).Error
+	err = r.DB.Create(&item).Error
 	if err != nil {
 		return fmt.Errorf("ошибка добавления материала в заявку: %w", err)
 	}
 
 	fmt.Printf("DEBUG: Material %d successfully added to request %d\n", materialID, request.RequestID)
 	return nil
+}
+
+func (r *Repository) GetDatingCartCount(userID int) (int, error) {
+	request, err := r.GetOrCreateDatingRequest(userID)
+	if err != nil {
+		return 0, err
+	}
+
+	var count int64
+	err = r.DB.Model(&ds.RequestMaterial{}).
+		Where("request_id = ?", request.RequestID).
+		Count(&count).Error
+	if err != nil {
+		return 0, err
+	}
+
+	return int(count), nil
+}
+
+func (r *Repository) GetCurrentDatingRequest(userID int) (*ds.MaterialAnalysisRequestDTO, error) {
+	request, err := r.GetOrCreateDatingRequest(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Загружаем связанные материалы
+	err = r.DB.Where("request_id = ?", request.RequestID).
+		Preload("Material").
+		Find(&request.RequestMaterials).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return r.convertToDTO(request)
 }

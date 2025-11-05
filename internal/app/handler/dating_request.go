@@ -20,7 +20,26 @@ type ProcessDatingRequestRequest struct {
 	Action string `json:"action" binding:"required"`
 }
 
+// GetDatingRequests получает список заявок на датирование
+// @Summary Get dating requests
+// @Description Get list of dating requests with filtering
+// @Tags Dating Requests
+// @Security BearerAuth
+// @Produce json
+// @Param status query string false "Filter by status"
+// @Param start_date query string false "Start date filter (YYYY-MM-DD)"
+// @Param end_date query string false "End date filter (YYYY-MM-DD)"
+// @Success 200 {object} map[string]interface{} "Success response with requests"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /dating/requests [get]
 func (h *Handler) GetDatingRequests(ctx *gin.Context) {
+	userID := h.getCurrentUserIDFromContext(ctx)
+	if userID == 0 {
+		h.errorHandler(ctx, http.StatusUnauthorized, fmt.Errorf("пользователь не авторизован"))
+		return
+	}
+
 	status := ctx.Query("status")
 	startDateStr := ctx.Query("start_date")
 	endDateStr := ctx.Query("end_date")
@@ -44,7 +63,10 @@ func (h *Handler) GetDatingRequests(ctx *gin.Context) {
 		}
 	}
 
-	requests, err := h.Repository.GetDatingRequests(status, startDate, endDate)
+	// Проверяем роль пользователя
+	isAdmin := h.IsAdmin(ctx)
+
+	requests, err := h.Repository.GetDatingRequests(userID, isAdmin, status, startDate, endDate)
 	if err != nil {
 		h.errorHandler(ctx, http.StatusInternalServerError, err)
 		return
@@ -53,7 +75,25 @@ func (h *Handler) GetDatingRequests(ctx *gin.Context) {
 	h.successResponse(ctx, requests)
 }
 
+// GetDatingRequestByID получает заявку по ID
+// @Summary Get dating request by ID
+// @Description Get dating request details by ID
+// @Tags Dating Requests
+// @Security BearerAuth
+// @Produce json
+// @Param id path int true "Request ID"
+// @Success 200 {object} map[string]interface{} "Success response with request"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 403 {object} map[string]interface{} "Forbidden"
+// @Failure 404 {object} map[string]interface{} "Request not found"
+// @Router /dating/requests/{id} [get]
 func (h *Handler) GetDatingRequestByID(ctx *gin.Context) {
+	userID := h.getCurrentUserIDFromContext(ctx)
+	if userID == 0 {
+		h.errorHandler(ctx, http.StatusUnauthorized, fmt.Errorf("пользователь не авторизован"))
+		return
+	}
+
 	strID := ctx.Param("id")
 	id, err := strconv.Atoi(strID)
 	if err != nil {
@@ -61,8 +101,13 @@ func (h *Handler) GetDatingRequestByID(ctx *gin.Context) {
 		return
 	}
 
-	request, err := h.Repository.GetDatingRequestByID(uint(id))
+	isAdmin := h.IsAdmin(ctx)
+	request, err := h.Repository.GetDatingRequestByID(uint(id), userID, isAdmin)
 	if err != nil {
+		if err.Error() == "access denied" {
+			h.errorHandler(ctx, http.StatusForbidden, fmt.Errorf("доступ запрещен"))
+			return
+		}
 		h.errorHandler(ctx, http.StatusNotFound, err)
 		return
 	}
@@ -70,6 +115,19 @@ func (h *Handler) GetDatingRequestByID(ctx *gin.Context) {
 	h.successResponse(ctx, request)
 }
 
+// UpdateDatingRequest обновляет заявку на датирование
+// @Summary Update dating request
+// @Description Update dating request data
+// @Tags Dating Requests
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path int true "Request ID"
+// @Param request body UpdateDatingRequestRequest true "Request update data"
+// @Success 200 {object} map[string]interface{} "Request updated successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /dating/requests/{id} [put]
 func (h *Handler) UpdateDatingRequest(ctx *gin.Context) {
 	strID := ctx.Param("id")
 	id, err := strconv.Atoi(strID)
@@ -129,6 +187,18 @@ func (h *Handler) UpdateDatingRequest(ctx *gin.Context) {
 	})
 }
 
+// FormDatingRequest формирует заявку
+// @Summary Form dating request
+// @Description Form dating request for processing
+// @Tags Dating Requests
+// @Security BearerAuth
+// @Produce json
+// @Param id path int true "Request ID"
+// @Success 200 {object} map[string]interface{} "Request formed successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 404 {object} map[string]interface{} "Request not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /dating/requests/{id}/form [put]
 func (h *Handler) FormDatingRequest(ctx *gin.Context) {
 	strID := ctx.Param("id")
 	id, err := strconv.Atoi(strID)
@@ -137,7 +207,7 @@ func (h *Handler) FormDatingRequest(ctx *gin.Context) {
 		return
 	}
 
-	request, err := h.Repository.GetDatingRequestByID(uint(id))
+	request, err := h.Repository.GetDatingRequestByID(uint(id), 0, true) // Админский доступ для проверки
 	if err != nil {
 		h.errorHandler(ctx, http.StatusNotFound, err)
 		return
@@ -175,6 +245,20 @@ func (h *Handler) FormDatingRequest(ctx *gin.Context) {
 	})
 }
 
+// ProcessDatingRequest обрабатывает заявку (завершает/отклоняет)
+// @Summary Process dating request
+// @Description Process dating request (complete/reject)
+// @Tags Dating Requests
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path int true "Request ID"
+// @Param request body ProcessDatingRequestRequest true "Process action"
+// @Success 200 {object} map[string]interface{} "Request processed successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 404 {object} map[string]interface{} "Request not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /dating/requests/{id}/process [put]
 func (h *Handler) ProcessDatingRequest(ctx *gin.Context) {
 	strID := ctx.Param("id")
 	id, err := strconv.Atoi(strID)
@@ -189,7 +273,7 @@ func (h *Handler) ProcessDatingRequest(ctx *gin.Context) {
 		return
 	}
 
-	request, err := h.Repository.GetDatingRequestByID(uint(id))
+	request, err := h.Repository.GetDatingRequestByID(uint(id), 0, true) // Админский доступ для модератора
 	if err != nil {
 		h.errorHandler(ctx, http.StatusNotFound, err)
 		return
@@ -235,6 +319,16 @@ func (h *Handler) ProcessDatingRequest(ctx *gin.Context) {
 	})
 }
 
+// DeleteDatingRequest удаляет заявку
+// @Summary Delete dating request
+// @Description Delete dating request by ID
+// @Tags Dating Requests
+// @Security BearerAuth
+// @Param id path int true "Request ID"
+// @Success 200 {object} map[string]interface{} "Request deleted successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /dating/requests/{id} [delete]
 func (h *Handler) DeleteDatingRequest(ctx *gin.Context) {
 	strID := ctx.Param("id")
 	id, err := strconv.Atoi(strID)
@@ -254,6 +348,17 @@ func (h *Handler) DeleteDatingRequest(ctx *gin.Context) {
 	})
 }
 
+// RemoveMaterialFromRequest удаляет материал из заявки
+// @Summary Remove material from request
+// @Description Remove material from dating request
+// @Tags Dating Requests
+// @Security BearerAuth
+// @Param requestId path int true "Request ID"
+// @Param materialId path int true "Material ID"
+// @Success 200 {object} map[string]interface{} "Material removed successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /dating/request-materials/{requestId}/{materialId} [delete]
 func (h *Handler) RemoveMaterialFromRequest(ctx *gin.Context) {
 	requestIDStr := ctx.Param("requestId")
 	materialIDStr := ctx.Param("materialId")
@@ -277,6 +382,20 @@ func (h *Handler) RemoveMaterialFromRequest(ctx *gin.Context) {
 	})
 }
 
+// UpdateRequestMaterial обновляет материал в заявке
+// @Summary Update request material
+// @Description Update material details in dating request
+// @Tags Dating Requests
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param requestId path int true "Request ID"
+// @Param materialId path int true "Material ID"
+// @Param updates body map[string]interface{} true "Update data"
+// @Success 200 {object} map[string]interface{} "Material updated successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /dating/request-materials/{requestId}/{materialId} [put]
 func (h *Handler) UpdateRequestMaterial(ctx *gin.Context) {
 	requestIDStr := ctx.Param("requestId")
 	materialIDStr := ctx.Param("materialId")

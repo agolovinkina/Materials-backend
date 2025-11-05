@@ -1,0 +1,868 @@
+basePath: /api
+definitions:
+  ds.ChangeUserDTO:
+    properties:
+      login:
+        type: string
+      password:
+        type: string
+    type: object
+  handler.AddMaterialToCartRequest:
+    properties:
+      material_id:
+        type: integer
+    required:
+    - material_id
+    type: object
+  handler.CreateMaterialRequest:
+    properties:
+      isotopes:
+        type: string
+      material_description:
+        type: string
+      material_name:
+        type: string
+      sample_requirements:
+        type: string
+    required:
+    - isotopes
+    - material_name
+    - sample_requirements
+    type: object
+  handler.LoginRequest:
+    properties:
+      login:
+        type: string
+      password:
+        type: string
+    required:
+    - login
+    - password
+    type: object
+  handler.LoginResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        type: integer
+      token_type:
+        type: string
+    type: object
+  handler.ProcessDatingRequestRequest:
+    properties:
+      action:
+        type: string
+    required:
+    - action
+    type: object
+  handler.UpdateDatingRequestRequest:
+    properties:
+      carbon_age_error:
+        type: integer
+      carbon_age_value:
+        type: integer
+      expedition_date:
+        type: string
+      region:
+        type: string
+    required:
+    - carbon_age_error
+    - carbon_age_value
+    - expedition_date
+    - region
+    type: object
+  handler.UpdateMaterialRequest:
+    properties:
+      isotopes:
+        type: string
+      material_description:
+        type: string
+      material_name:
+        type: string
+      sample_requirements:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: Бэкенд сервис для анализа материалов и радиоуглеродного датирования.
+  title: Система анализа материалов
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user and return JWT token
+      parameters:
+      - description: Login credentials
+        in: body
+        name: login
+        required: true
+        schema:
+          $ref: '#/definitions/handler.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Login successful
+          schema:
+            $ref: '#/definitions/handler.LoginResponse'
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: User login
+      tags:
+      - Auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Register new user account
+      parameters:
+      - description: User registration data
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/ds.ChangeUserDTO'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: User registered successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Register user
+      tags:
+      - Auth
+  /dating/cart:
+    get:
+      description: Get current user's dating cart with materials
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Success response with cart data
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get dating cart
+      tags:
+      - Dating Cart
+  /dating/cart/icon:
+    get:
+      description: Get the number of materials in dating cart
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Success response with count
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get cart item count
+      tags:
+      - Dating Cart
+  /dating/cart/materials:
+    post:
+      consumes:
+      - application/json
+      description: Add material to dating cart
+      parameters:
+      - description: Material data
+        in: body
+        name: material
+        required: true
+        schema:
+          $ref: '#/definitions/handler.AddMaterialToCartRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Material added successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Material not found
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Material already in cart
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Add material to cart
+      tags:
+      - Dating Cart
+  /dating/request-materials/{requestId}/{materialId}:
+    delete:
+      description: Remove material from dating request
+      parameters:
+      - description: Request ID
+        in: path
+        name: requestId
+        required: true
+        type: integer
+      - description: Material ID
+        in: path
+        name: materialId
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: Material removed successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Remove material from request
+      tags:
+      - Dating Requests
+    put:
+      consumes:
+      - application/json
+      description: Update material details in dating request
+      parameters:
+      - description: Request ID
+        in: path
+        name: requestId
+        required: true
+        type: integer
+      - description: Material ID
+        in: path
+        name: materialId
+        required: true
+        type: integer
+      - description: Update data
+        in: body
+        name: updates
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Material updated successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update request material
+      tags:
+      - Dating Requests
+  /dating/requests:
+    get:
+      description: Get list of dating requests with filtering
+      parameters:
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      - description: Start date filter (YYYY-MM-DD)
+        in: query
+        name: start_date
+        type: string
+      - description: End date filter (YYYY-MM-DD)
+        in: query
+        name: end_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Success response with requests
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get dating requests
+      tags:
+      - Dating Requests
+  /dating/requests/{id}:
+    delete:
+      description: Delete dating request by ID
+      parameters:
+      - description: Request ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: Request deleted successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete dating request
+      tags:
+      - Dating Requests
+    get:
+      description: Get dating request details by ID
+      parameters:
+      - description: Request ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Success response with request
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Request not found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get dating request by ID
+      tags:
+      - Dating Requests
+    put:
+      consumes:
+      - application/json
+      description: Update dating request data
+      parameters:
+      - description: Request ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Request update data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.UpdateDatingRequestRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Request updated successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update dating request
+      tags:
+      - Dating Requests
+  /dating/requests/{id}/form:
+    put:
+      description: Form dating request for processing
+      parameters:
+      - description: Request ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Request formed successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Request not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Form dating request
+      tags:
+      - Dating Requests
+  /dating/requests/{id}/process:
+    put:
+      consumes:
+      - application/json
+      description: Process dating request (complete/reject)
+      parameters:
+      - description: Request ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Process action
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.ProcessDatingRequestRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Request processed successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Request not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Process dating request
+      tags:
+      - Dating Requests
+  /materials:
+    get:
+      description: Get all materials with optional search
+      parameters:
+      - description: Search query
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Success response with materials array
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get all materials
+      tags:
+      - Materials
+    post:
+      consumes:
+      - application/json
+      description: Create new material (admin only)
+      parameters:
+      - description: Material data
+        in: body
+        name: material
+        required: true
+        schema:
+          $ref: '#/definitions/handler.CreateMaterialRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Material created successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create material
+      tags:
+      - Materials
+  /materials/{id}:
+    delete:
+      description: Delete material by ID (admin only)
+      parameters:
+      - description: Material ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: Material deleted successfully
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete material
+      tags:
+      - Materials
+    get:
+      description: Get material details by ID
+      parameters:
+      - description: Material ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Success response with material
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Material not found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get material by ID
+      tags:
+      - Materials
+    put:
+      consumes:
+      - application/json
+      description: Update material by ID (admin only)
+      parameters:
+      - description: Material ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Material update data
+        in: body
+        name: material
+        required: true
+        schema:
+          $ref: '#/definitions/handler.UpdateMaterialRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Material updated successfully
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update material
+      tags:
+      - Materials
+  /materials/{id}/image:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload image for material (admin only)
+      parameters:
+      - description: Material ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Image file
+        in: formData
+        name: image
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Image uploaded successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Upload material image
+      tags:
+      - Materials
+  /test-upload:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Test endpoint for file upload debugging
+      parameters:
+      - description: Test file
+        in: formData
+        name: image
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Test successful
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Test file upload
+      tags:
+      - Debug
+  /user/logout:
+    post:
+      description: Logout user and invalidate token
+      responses:
+        "200":
+          description: Logout successful
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: User logout
+      tags:
+      - Auth
+  /user/profile:
+    get:
+      description: Get current user profile information
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Success response with user profile
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: User not found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get user profile
+      tags:
+      - User
+    put:
+      consumes:
+      - application/json
+      description: Update current user profile information
+      parameters:
+      - description: User update data
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/ds.ChangeUserDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Profile updated successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update user profile
+      tags:
+      - User
+schemes:
+- http
+securityDefinitions:
+  BearerAuth:
+    description: 'Используется для запросов через Insomnia/Postman: "Bearer <JWT>"'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

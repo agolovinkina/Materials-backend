@@ -1,0 +1,17 @@
+basePath: /api
+host: localhost:8080
+info:
+  contact: {}
+  description: Бэкенд сервис для анализа материалов и радиоуглеродного датирования.
+  title: Система анализа материалов
+  version: "1.0"
+paths: {}
+schemes:
+- http
+securityDefinitions:
+  BearerAuth:
+    description: 'Используется для запросов через Insomnia/Postman: "Bearer <JWT>"'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

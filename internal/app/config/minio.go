@@ -12,15 +12,16 @@ type MinIOConfig struct {
 
 func NewMinIOConfig() *MinIOConfig {
 	return &MinIOConfig{
-		Endpoint:  getEnv("MINIO_ENDPOINT", "localhost:9000"),
-		AccessKey: getEnv("MINIO_ACCESS_KEY", "minioadmin"),
-		SecretKey: getEnv("MINIO_SECRET_KEY", "minioadmin"),
-		Bucket:    getEnv("MINIO_BUCKET", "materials"),
-		SSL:       getEnv("MINIO_SSL", "false") == "true",
+		Endpoint:  getEnvMinIO("MINIO_ENDPOINT", "localhost:9000"),
+		AccessKey: getEnvMinIO("MINIO_ACCESS_KEY", "minioadmin"),
+		SecretKey: getEnvMinIO("MINIO_SECRET_KEY", "minioadmin"),
+		Bucket:    getEnvMinIO("MINIO_BUCKET", "materials"),
+		SSL:       getEnvMinIO("MINIO_SSL", "false") == "true",
 	}
 }
 
-func getEnv(key, defaultValue string) string {
+// Переименуем функцию чтобы избежать конфликта
+func getEnvMinIO(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
 	}
