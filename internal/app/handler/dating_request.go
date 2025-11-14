@@ -273,6 +273,11 @@ func (h *Handler) ProcessDatingRequest(ctx *gin.Context) {
 		return
 	}
 
+	if req.Action != "complete" && req.Action != "reject" {
+		h.errorHandler(ctx, http.StatusBadRequest, fmt.Errorf("неверное действие. Допустимые значения: complete, reject"))
+		return
+	}
+
 	request, err := h.Repository.GetDatingRequestByID(uint(id), 0, true) // Админский доступ для модератора
 	if err != nil {
 		h.errorHandler(ctx, http.StatusNotFound, err)
@@ -280,43 +285,44 @@ func (h *Handler) ProcessDatingRequest(ctx *gin.Context) {
 	}
 
 	var calendarYear, calendarError int
+	var formattedDate string
 
 	if req.Action == "complete" {
+		// Формируем строку радиоуглеродного возраста для калькулятора
 		carbonAgeStr := fmt.Sprintf("%d ± %d BP", request.CarbonAgeValue, request.CarbonAgeError)
 
+		// Используем калькулятор для расчета календарной даты
 		result, err := h.CalcService.CalculateProbability(carbonAgeStr, request.Region)
 		if err != nil {
-			h.errorHandler(ctx, http.StatusInternalServerError, err)
+			h.errorHandler(ctx, http.StatusInternalServerError, fmt.Errorf("ошибка расчета календарной даты: %w", err))
 			return
 		}
+
 		calendarYear = result.Year
 		calendarError = result.ErrorRange
+		formattedDate = result.FormattedDate
 	}
 
-	moderatorID := h.getCurrentModeratorID()
+	// Получаем ID модератора из контекста и конвертируем в uint
+	moderatorID := uint(h.getCurrentUserIDFromContext(ctx))
 	err = h.Repository.ProcessDatingRequest(uint(id), moderatorID, req.Action, calendarYear, calendarError)
 	if err != nil {
 		h.errorHandler(ctx, http.StatusInternalServerError, err)
 		return
 	}
 
-	formattedDate := ""
-	if calendarYear != 0 {
-		era := "AD"
-		year := calendarYear
-		if calendarYear < 0 {
-			era = "BC"
-			year = -calendarYear
-		}
-		formattedDate = fmt.Sprintf("%d %s ± %d лет", year, era, calendarError)
+	response := gin.H{
+		"status":  "success",
+		"message": "Заявка успешно обработана",
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"status":         "success",
-		"calendar_year":  calendarYear,
-		"calendar_error": calendarError,
-		"formatted_date": formattedDate,
-	})
+	if req.Action == "complete" {
+		response["calendar_year"] = calendarYear
+		response["calendar_error"] = calendarError
+		response["formatted_date"] = formattedDate
+	}
+
+	ctx.JSON(http.StatusOK, response)
 }
 
 // DeleteDatingRequest удаляет заявку

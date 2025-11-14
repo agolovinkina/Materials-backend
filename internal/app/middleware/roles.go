@@ -1,84 +1,30 @@
 package middleware
 
 import (
-	"lr4/internal/app/role"
 	"net/http"
+
+	"lr4/internal/app/ds"
 
 	"github.com/gin-gonic/gin"
 )
 
-// AdminRequired проверяет что пользователь администратор
-func (a *AuthMiddleware) AdminRequired() gin.HandlerFunc {
+func RequireModerator() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		userRole, exists := ctx.Get("user_role")
-		if !exists {
-			ctx.JSON(http.StatusForbidden, gin.H{
-				"error":   true,
-				"message": "Доступ запрещен",
-			})
-			ctx.Abort()
+		if GetRole(ctx) != ds.RoleModerator {
+			ctx.AbortWithStatusJSON(http.StatusForbidden, gin.H{"message": "Доступ запрещен. Требуются права модератора."})
 			return
 		}
-
-		// Получаем роль как значение типа role.Role
-		userRoleValue, ok := userRole.(role.Role)
-		if !ok {
-			ctx.JSON(http.StatusForbidden, gin.H{
-				"error":   true,
-				"message": "Доступ запрещен: неверный формат роли",
-			})
-			ctx.Abort()
-			return
-		}
-
-		// Сравниваем с константой role.Admin
-		if userRoleValue != role.Admin {
-			ctx.JSON(http.StatusForbidden, gin.H{
-				"error":   true,
-				"message": "Требуются права администратора",
-			})
-			ctx.Abort()
-			return
-		}
-
 		ctx.Next()
 	}
 }
 
-// ModeratorRequired проверяет что пользователь модератор или админ
-func (a *AuthMiddleware) ModeratorRequired() gin.HandlerFunc {
+func RequireAuth() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		userRole, exists := ctx.Get("user_role")
-		if !exists {
-			ctx.JSON(http.StatusForbidden, gin.H{
-				"error":   true,
-				"message": "Доступ запрещен",
-			})
-			ctx.Abort()
+		role := GetRole(ctx)
+		if role != ds.RoleCreator && role != ds.RoleModerator {
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "Требуется авторизация."})
 			return
 		}
-
-		// Получаем роль как значение типа role.Role
-		userRoleValue, ok := userRole.(role.Role)
-		if !ok {
-			ctx.JSON(http.StatusForbidden, gin.H{
-				"error":   true,
-				"message": "Доступ запрещен: неверный формат роли",
-			})
-			ctx.Abort()
-			return
-		}
-
-		// Сравниваем с константами role.Manager и role.Admin
-		if userRoleValue != role.Manager && userRoleValue != role.Admin {
-			ctx.JSON(http.StatusForbidden, gin.H{
-				"error":   true,
-				"message": "Требуются права модератора",
-			})
-			ctx.Abort()
-			return
-		}
-
 		ctx.Next()
 	}
 }

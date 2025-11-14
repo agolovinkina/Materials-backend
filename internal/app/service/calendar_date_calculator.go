@@ -21,6 +21,13 @@ type CalendarDateResult struct {
 	Era           string `json:"era"`
 }
 
+type CalculationResult struct {
+	Year          int    `json:"year"`
+	ErrorRange    int    `json:"error_range"`
+	Era           string `json:"era"`
+	FormattedDate string `json:"formatted_date"`
+}
+
 func NewCalendarDateCalculator() *CalendarDateCalculator {
 	calculator := &CalendarDateCalculator{}
 	calculator.initializeRegionalData()
@@ -146,6 +153,17 @@ func (c *CalendarDateCalculator) convertToCalendarYear(t_cal float64) (int, stri
 	}
 }
 
-func (c *CalendarDateCalculator) CalculateProbability(carbonAgeStr string, region string) (*CalendarDateResult, error) {
-	return c.CalculateCalendarDate(carbonAgeStr, region)
+// CalculateProbability - метод для совместимости с существующим кодом
+func (c *CalendarDateCalculator) CalculateProbability(carbonAgeStr string, region string) (*CalculationResult, error) {
+	result, err := c.CalculateCalendarDate(carbonAgeStr, region)
+	if err != nil {
+		return nil, err
+	}
+
+	return &CalculationResult{
+		Year:          result.Year,
+		ErrorRange:    result.ErrorRange,
+		Era:           result.Era,
+		FormattedDate: result.FormattedDate,
+	}, nil
 }

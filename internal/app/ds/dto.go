@@ -2,6 +2,8 @@ package ds
 
 import (
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 type MaterialAnalysisRequestDTO struct {
@@ -62,18 +64,79 @@ type UpdateRequestMaterialDTO struct {
 	SampleWeight      float64 `json:"SampleWeight"`
 }
 
+type AnalysisRequestDTO struct {
+	AnalysisRequestID     int                `json:"AnalysisRequestID"`
+	AnalysisRequestStatus string             `json:"AnalysisRequestStatus"`
+	CreatedAt             time.Time          `json:"CreatedAt"`
+	CreatorLogin          string             `json:"CreatorLogin"`
+	FormedAt              *time.Time         `json:"FormedAt,omitempty"`
+	CompletedAt           *time.Time         `json:"CompletedAt,omitempty"`
+	ModeratorLogin        *string            `json:"ModeratorLogin,omitempty"`
+	TextToAnalyse         string             `json:"TextToAnalyse"`
+	Genres                []AnalysisGenreDTO `json:"Genres"`
+}
+
+type AnalysisGenreDTO struct {
+	GenreID            int    `json:"GenreID"`
+	GenreName          string `json:"GenreName"`
+	GenreImageURL      string `json:"GenreImageURL"`
+	CommentToRequest   string `json:"CommentToRequest"`
+	ProbabilityPercent int    `json:"ProbabilityPercent"`
+}
+
+type UpdateAnalysisRequestDTO struct {
+	TextToAnalyse string `json:"TextToAnalyse"`
+}
+
+type UpdateGenreRequestDTO struct {
+	CommentToRequest   string `json:"CommentToRequest"`
+	ProbabilityPercent int    `json:"ProbabilityPercent"`
+}
+
+type GenreDTO struct {
+	GenreID       int    `json:"GenreID"`
+	GenreName     string `json:"GenreName"`
+	GenreImageURL string `json:"GenreImageURL"`
+	GenreKeywords string `json:"GenreKeywords"`
+}
+
+type UpdateGenreDTO struct {
+	GenreName     string `json:"GenreName"`
+	GenreKeywords string `json:"GenreKeywords"`
+}
+
 type UserDTO struct {
-	UserID      uint   `json:"UserID"`
-	Login       string `json:"Login"`
-	IsModerator bool   `json:"IsModerator"`
+	UserID int      `json:"UserID"`
+	Login  string   `json:"Login"`
+	Role   UserRole `json:"Role"`
 }
 
 type ChangeUserDTO struct {
-	Login    string `json:"login"`
-	Password string `json:"password"`
+	Login    string `json:"Login"`
+	Password string `json:"Password"`
 }
 
 type CartIconDTO struct {
 	RequestID uint `json:"RequestID"`
 	Count     int  `json:"Count"`
+}
+
+type UserRole string
+
+const (
+	RoleGuest     UserRole = "guest"
+	RoleCreator   UserRole = "creator"
+	RoleModerator UserRole = "moderator"
+)
+
+type JWTClaims struct {
+	jwt.RegisteredClaims
+	UserID int      `json:"UserID"`
+	Role   UserRole `json:"Role"`
+}
+
+type AuthResponseDTO struct {
+	AccessToken string `json:"AccessToken"`
+	TokenType   string `json:"TokenType"`
+	ExpiresIn   int64  `json:"ExpiresIn"`
 }

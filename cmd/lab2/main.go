@@ -4,18 +4,18 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"lr4/internal/app/config"
 	"lr4/internal/app/ds"
 	"lr4/internal/app/dsn"
 	"lr4/internal/app/handler"
-	"lr4/internal/app/middleware"
-	"lr4/internal/app/redis"
 	"lr4/internal/app/repository"
 	"lr4/internal/app/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -35,6 +35,10 @@ import (
 // @in header
 // @name Authorization
 // @description Используется для запросов через Insomnia/Postman: "Bearer <JWT>"
+// @securityDefinitions.cookie SessionCookie
+// @name session_token
+// @description Используется для запросов из браузера.
+// @in cookie
 func main() {
 	// Загружаем переменные окружения
 	if err := godotenv.Load(); err != nil {
@@ -47,12 +51,21 @@ func main() {
 		logrus.Fatalf("error loading config: %v", err)
 	}
 
+	// Инициализация Redis
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     conf.Redis.Addr,
+		Password: conf.Redis.Password,
+		DB:       conf.Redis.DB,
+	})
+
+	_, err = rdb.Ping(context.Background()).Result()
+	if err != nil {
+		logrus.Fatalf("Ошибка подключения к Redis: %v", err)
+	}
+	logrus.Info("Успешное подключение к Redis.")
+
 	// Подключение к PostgreSQL
 	postgresString := dsn.FromEnv()
-	if postgresString == "" {
-		log.Fatal("DSN string is empty. Check your environment variables")
-	}
-
 	fmt.Println("PostgreSQL DSN:", postgresString)
 
 	// Подключаемся к БД
@@ -77,45 +90,33 @@ func main() {
 	log.Println("Database migration completed successfully!")
 
 	// Инициализация репозитория
-	rep := &repository.Repository{DB: db}
+	rep := repository.NewRepository(db)
 
-	// Инициализация Redis клиента
-	var redisClient *redis.Client
-	redisClient, err = redis.New(context.Background(), conf.Redis)
+	// Инициализация MinIO
+	minioClient, err := config.NewMinioClient(conf.Minio)
 	if err != nil {
-		logrus.Warnf("Redis not available: %v", err)
-	} else {
-		logrus.Info("Успешное подключение к Redis.")
+		logrus.Fatal("Failed to initialize Minio client: ", err)
 	}
 
 	// Инициализация сервиса расчета календарных дат
 	calcService := service.NewCalendarDateCalculator()
 
-	// Инициализация middleware аутентификации
-	authMiddleware := middleware.NewAuthMiddleware(conf, redisClient)
-
-	// Инициализация MinIO (опционально)
-	var minioService *service.MinIOService
-	minioConfig := config.NewMinIOConfig()
-	minioService, err = service.NewMinIOService(
-		minioConfig.Endpoint,
-		minioConfig.AccessKey,
-		minioConfig.SecretKey,
-		minioConfig.Bucket,
-		minioConfig.SSL,
-	)
+	// Парсинг JWT длительности
+	jwtDuration, err := time.ParseDuration(conf.JWT.ExpiresIn)
 	if err != nil {
-		logrus.Warnf("MinIO not available: %v", err)
-	} else {
-		logrus.Info("MinIO service initialized successfully")
+		logrus.Fatalf("Invalid JWT expiration duration in config: %v", err)
 	}
 
+	// Инициализация handler
 	hand := handler.NewHandler(
 		rep,
+		minioClient,
+		conf.Minio.BucketName,
+		rdb,
+		conf.JWT.SecretKey,
+		conf.ServiceHost,
+		jwtDuration,
 		calcService,
-		minioService,
-		authMiddleware,
-		redisClient,
 	)
 
 	// Регистрация маршрутов

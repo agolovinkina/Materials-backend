@@ -8,7 +8,7 @@ import (
 
 func (r *Repository) GetDatingRequestByID(requestID uint, userID int, isAdmin bool) (*ds.MaterialAnalysisRequestDTO, error) {
 	var request ds.MaterialAnalysisRequest
-	query := r.DB.Where("request_id = ? AND request_status != 'deleted'", requestID)
+	query := r.db.Where("request_id = ? AND request_status != 'deleted'", requestID)
 
 	// Если пользователь не админ, проверяем что заявка принадлежит ему
 	if !isAdmin {
@@ -32,7 +32,7 @@ func (r *Repository) GetDatingRequestByID(requestID uint, userID int, isAdmin bo
 
 func (r *Repository) GetDatingRequests(userID int, isAdmin bool, status string, startDate, endDate time.Time) ([]ds.MaterialAnalysisRequestDTO, error) {
 	var requests []ds.MaterialAnalysisRequest
-	query := r.DB.Where("request_status != 'deleted'")
+	query := r.db.Where("request_status != 'deleted'")
 
 	// Если пользователь не админ, показываем только его заявки
 	if !isAdmin {
@@ -69,18 +69,18 @@ func (r *Repository) GetDatingRequests(userID int, isAdmin bool, status string, 
 }
 
 func (r *Repository) UpdateDatingRequest(requestID uint, updates map[string]interface{}) error {
-	return r.DB.Model(&ds.MaterialAnalysisRequest{}).Where("request_id = ? AND request_status = 'draft'", requestID).Updates(updates).Error
+	return r.db.Model(&ds.MaterialAnalysisRequest{}).Where("request_id = ? AND request_status = 'draft'", requestID).Updates(updates).Error
 }
 
 func (r *Repository) FormDatingRequest(requestID uint) error {
 	var request ds.MaterialAnalysisRequest
-	err := r.DB.Where("request_id = ? AND request_status = 'draft'", requestID).First(&request).Error
+	err := r.db.Where("request_id = ? AND request_status = 'draft'", requestID).First(&request).Error
 	if err != nil {
 		return err
 	}
 
 	var count int64
-	err = r.DB.Model(&ds.RequestMaterial{}).Where("request_id = ?", requestID).Count(&count).Error
+	err = r.db.Model(&ds.RequestMaterial{}).Where("request_id = ?", requestID).Count(&count).Error
 	if err != nil {
 		return err
 	}
@@ -90,7 +90,7 @@ func (r *Repository) FormDatingRequest(requestID uint) error {
 	}
 
 	now := time.Now()
-	return r.DB.Model(&ds.MaterialAnalysisRequest{}).Where("request_id = ?", requestID).Updates(map[string]interface{}{
+	return r.db.Model(&ds.MaterialAnalysisRequest{}).Where("request_id = ?", requestID).Updates(map[string]interface{}{
 		"request_status": "formed",
 		"formed_at":      now,
 	}).Error
@@ -98,7 +98,7 @@ func (r *Repository) FormDatingRequest(requestID uint) error {
 
 func (r *Repository) ProcessDatingRequest(requestID uint, moderatorID uint, action string, calendarYear int, calendarError int) error {
 	var request ds.MaterialAnalysisRequest
-	err := r.DB.Where("request_id = ? AND request_status = 'formed'", requestID).First(&request).Error
+	err := r.db.Where("request_id = ? AND request_status = 'formed'", requestID).First(&request).Error
 	if err != nil {
 		return err
 	}
@@ -113,7 +113,7 @@ func (r *Repository) ProcessDatingRequest(requestID uint, moderatorID uint, acti
 		updates["request_status"] = "completed"
 		updates["completed_at"] = now
 		if calendarYear > 0 {
-			err = r.DB.Model(&ds.RequestMaterial{}).Where("request_id = ?", requestID).Updates(map[string]interface{}{
+			err = r.db.Model(&ds.RequestMaterial{}).Where("request_id = ?", requestID).Updates(map[string]interface{}{
 				"calendar_year":  calendarYear,
 				"calendar_error": calendarError,
 			}).Error
@@ -128,19 +128,19 @@ func (r *Repository) ProcessDatingRequest(requestID uint, moderatorID uint, acti
 		return fmt.Errorf("недопустимое действие: %s", action)
 	}
 
-	return r.DB.Model(&ds.MaterialAnalysisRequest{}).Where("request_id = ?", requestID).Updates(updates).Error
+	return r.db.Model(&ds.MaterialAnalysisRequest{}).Where("request_id = ?", requestID).Updates(updates).Error
 }
 
 func (r *Repository) RemoveMaterialFromRequest(requestID uint, materialID uint) error {
-	return r.DB.Where("request_id = ? AND material_id = ?", requestID, materialID).Delete(&ds.RequestMaterial{}).Error
+	return r.db.Where("request_id = ? AND material_id = ?", requestID, materialID).Delete(&ds.RequestMaterial{}).Error
 }
 
 func (r *Repository) UpdateRequestMaterial(requestID uint, materialID uint, updates map[string]interface{}) error {
-	return r.DB.Model(&ds.RequestMaterial{}).Where("request_id = ? AND material_id = ?", requestID, materialID).Updates(updates).Error
+	return r.db.Model(&ds.RequestMaterial{}).Where("request_id = ? AND material_id = ?", requestID, materialID).Updates(updates).Error
 }
 
 func (r *Repository) DeleteDatingRequest(requestID uint) error {
-	return r.DB.Exec("UPDATE material_analysis_requests SET request_status = 'deleted' WHERE request_id = ?", requestID).Error
+	return r.db.Exec("UPDATE material_analysis_requests SET request_status = 'deleted' WHERE request_id = ?", requestID).Error
 }
 
 func (r *Repository) convertToDTO(request *ds.MaterialAnalysisRequest) (*ds.MaterialAnalysisRequestDTO, error) {
@@ -158,14 +158,14 @@ func (r *Repository) convertToDTO(request *ds.MaterialAnalysisRequest) (*ds.Mate
 	}
 
 	var creator ds.User
-	if err := r.DB.Select("login").Where("user_id = ?", request.CreatorID).First(&creator).Error; err != nil {
+	if err := r.db.Select("login").Where("user_id = ?", request.CreatorID).First(&creator).Error; err != nil {
 		return nil, fmt.Errorf("ошибка загрузки создателя: %w", err)
 	}
 	dto.CreatorLogin = creator.Login
 
 	if request.ModeratorID != nil {
 		var moderator ds.User
-		if err := r.DB.Select("login").Where("user_id = ?", *request.ModeratorID).First(&moderator).Error; err != nil {
+		if err := r.db.Select("login").Where("user_id = ?", *request.ModeratorID).First(&moderator).Error; err != nil {
 			return nil, fmt.Errorf("ошибка загрузки модератора: %w", err)
 		}
 		dto.ModeratorLogin = &moderator.Login

@@ -5,72 +5,75 @@ import (
 	"lr4/internal/app/ds"
 )
 
-func (r *Repository) CreateUser(user *ds.User) error {
-	var existingUser ds.User
-	if err := r.DB.Where("login = ?", user.Login).First(&existingUser).Error; err == nil {
-		return fmt.Errorf("user already exists")
-	}
-
-	return r.DB.Create(user).Error
-}
-
-func (r *Repository) GetUserByLogin(login string) (*ds.User, error) {
-	var user ds.User
-	if err := r.DB.Where("login = ?", login).First(&user).Error; err != nil {
-		return nil, fmt.Errorf("user not found")
-	}
-	return &user, nil
-}
-
-func (r *Repository) GetUserByID(userID int) (*ds.User, error) {
-	var user ds.User
-	if err := r.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
-		return nil, fmt.Errorf("user not found")
-	}
-	return &user, nil
-}
-
-func (r *Repository) UpdateUser(userID int, login, password string) (*ds.User, error) {
-	var user ds.User
-	if err := r.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
-		return nil, err
-	}
-
-	// Check if login is being changed and if it's already taken
-	if login != "" && login != user.Login {
-		var count int64
-		r.DB.Model(&ds.User{}).Where("login = ? AND user_id != ?", login, userID).Count(&count)
-		if count > 0 {
-			return nil, fmt.Errorf("login already taken")
-		}
-		user.Login = login
-	}
-
-	if password != "" {
-		user.Password = password
-	}
-
-	if err := r.DB.Save(&user).Error; err != nil {
-		return nil, err
-	}
-
-	return &user, nil
-}
-
 func (r *Repository) RegisterUser(input ds.ChangeUserDTO) error {
-	user := &ds.User{
+	var existingUser ds.User
+	err := r.db.Where("login = ?", input.Login).First(&existingUser).Error
+	if err == nil {
+		return fmt.Errorf("пользователь с таким логином уже существует")
+	}
+
+	user := ds.User{
 		Login:    input.Login,
 		Password: input.Password,
 	}
-
-	return r.DB.Create(user).Error
+	return r.db.Create(&user).Error
 }
 
-func (r *Repository) LoginUser(login, password string) (*ds.User, error) {
+func (r *Repository) LoginUser(login, password string) (*ds.UserDTO, error) {
 	var user ds.User
-	err := r.DB.Where("login = ? AND password = ?", login, password).First(&user).Error
+	err := r.db.Where("login = ? AND password = ?", login, password).First(&user).Error
 	if err != nil {
-		return nil, fmt.Errorf("user not found")
+		return nil, fmt.Errorf("неверный логин или пароль")
 	}
-	return &user, nil
+
+	role := ds.RoleCreator
+	if user.IsModerator {
+		role = ds.RoleModerator
+	}
+
+	return &ds.UserDTO{
+		UserID: user.UserID,
+		Login:  user.Login,
+		Role:   role,
+	}, nil
+}
+
+func (r *Repository) GetUserByID(userID int) (*ds.UserDTO, error) {
+	var user ds.User
+	err := r.db.Where("user_id = ?", userID).First(&user).Error
+	if err != nil {
+		return nil, err
+	}
+	role := ds.RoleCreator
+	if user.IsModerator {
+		role = ds.RoleModerator
+	}
+	return &ds.UserDTO{
+		UserID: user.UserID,
+		Login:  user.Login,
+		Role:   role,
+	}, nil
+}
+
+func (r *Repository) UpdateUser(userID int, userUpdates ds.ChangeUserDTO) error {
+	var user ds.User
+	err := r.db.Where("user_id = ?", userID).First(&user).Error
+	if err != nil {
+		return err
+	}
+
+	if userUpdates.Login != "" {
+		var count int64
+		r.db.Model(&ds.User{}).Where("login = ? AND user_id != ?", userUpdates.Login, userID).Count(&count)
+		if count > 0 {
+			return fmt.Errorf("логин уже занят")
+		}
+		user.Login = userUpdates.Login
+	}
+
+	if userUpdates.Password != "" {
+		user.Password = userUpdates.Password
+	}
+
+	return r.db.Save(&user).Error
 }

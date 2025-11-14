@@ -21,7 +21,7 @@ func (r *Repository) CreateDatingRequest(userID int) (*ds.MaterialAnalysisReques
 		TotalPrice:     0.0,
 	}
 
-	err := r.DB.Create(newRequest).Error
+	err := r.db.Create(newRequest).Error
 	if err != nil {
 		return nil, fmt.Errorf("ошибка создания заявки: %w", err)
 	}
@@ -32,7 +32,7 @@ func (r *Repository) CreateDatingRequest(userID int) (*ds.MaterialAnalysisReques
 
 func (r *Repository) GetOrCreateDatingRequest(userID int) (*ds.MaterialAnalysisRequest, error) {
 	var request ds.MaterialAnalysisRequest
-	err := r.DB.Where("creator_id = ? AND request_status = 'draft'", userID).First(&request).Error
+	err := r.db.Where("creator_id = ? AND request_status = 'draft'", userID).First(&request).Error
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -55,7 +55,7 @@ func (r *Repository) AddMaterialToDatingRequest(userID int, materialID uint, com
 	fmt.Printf("DEBUG: Using request ID: %d for user: %d\n", request.RequestID, userID)
 
 	var material ds.Material
-	err = r.DB.Where("material_id = ? AND is_deleted = false", materialID).First(&material).Error
+	err = r.db.Where("material_id = ? AND is_deleted = false", materialID).First(&material).Error
 	if err != nil {
 		return fmt.Errorf("материал не найден: %w", err)
 	}
@@ -63,7 +63,7 @@ func (r *Repository) AddMaterialToDatingRequest(userID int, materialID uint, com
 	fmt.Printf("DEBUG: Material found: %s (ID: %d)\n", material.MaterialName, material.MaterialID)
 
 	var count int64
-	err = r.DB.Model(&ds.RequestMaterial{}).
+	err = r.db.Model(&ds.RequestMaterial{}).
 		Where("request_id = ? AND material_id = ?", request.RequestID, materialID).
 		Count(&count).Error
 	if err != nil {
@@ -85,7 +85,7 @@ func (r *Repository) AddMaterialToDatingRequest(userID int, materialID uint, com
 		IsPrimary:         false,
 	}
 
-	err = r.DB.Create(&item).Error
+	err = r.db.Create(&item).Error
 	if err != nil {
 		return fmt.Errorf("ошибка добавления материала в заявку: %w", err)
 	}
@@ -101,7 +101,7 @@ func (r *Repository) GetDatingCartCount(userID int) (int, error) {
 	}
 
 	var count int64
-	err = r.DB.Model(&ds.RequestMaterial{}).
+	err = r.db.Model(&ds.RequestMaterial{}).
 		Where("request_id = ?", request.RequestID).
 		Count(&count).Error
 	if err != nil {
@@ -118,7 +118,7 @@ func (r *Repository) GetCurrentDatingRequest(userID int) (*ds.MaterialAnalysisRe
 	}
 
 	// Загружаем связанные материалы
-	err = r.DB.Where("request_id = ?", request.RequestID).
+	err = r.db.Where("request_id = ?", request.RequestID).
 		Preload("Material").
 		Find(&request.RequestMaterials).Error
 	if err != nil {

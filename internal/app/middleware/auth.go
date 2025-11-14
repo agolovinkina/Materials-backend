@@ -1,114 +1,87 @@
 package middleware
 
 import (
+	"context"
 	"errors"
 	"net/http"
-	"strings"
-	"time"
 
-	"lr4/internal/app/config"
-	"lr4/internal/app/ds"
-	"lr4/internal/app/redis"
+	"lr4/internal/app/ds" // Импорт ds для доступа к UserRole
+	"lr4/internal/app/service"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt"
+	"github.com/redis/go-redis/v9"
+	"github.com/sirupsen/logrus"
 )
 
-type AuthMiddleware struct {
-	cfg         *config.Config
-	redisClient *redis.Client
-}
-
-func NewAuthMiddleware(cfg *config.Config, redisClient *redis.Client) *AuthMiddleware {
-	return &AuthMiddleware{
-		cfg:         cfg,
-		redisClient: redisClient,
-	}
-}
-
-// GetJWTSecret возвращает секретный ключ для JWT
-func (a *AuthMiddleware) GetJWTSecret() string {
-	return a.cfg.JWT.Token
-}
-
-// GetJWTExpiresIn возвращает время жизни JWT токена
-func (a *AuthMiddleware) GetJWTExpiresIn() time.Duration {
-	return a.cfg.JWT.ExpiresIn
-}
-
-func (a *AuthMiddleware) AuthRequired() gin.HandlerFunc {
+func AuthMiddleware(secretKey string, rdb *redis.Client) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		authHeader := ctx.GetHeader("Authorization")
-		if authHeader == "" {
-			ctx.JSON(http.StatusUnauthorized, gin.H{
-				"error":   true,
-				"message": "Authorization header required",
-			})
-			ctx.Abort()
+		tokenString := service.ExtractToken(ctx)
+		if tokenString == "" {
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "Неавторизован. Отсутствует токен."})
 			return
 		}
 
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			ctx.JSON(http.StatusUnauthorized, gin.H{
-				"error":   true,
-				"message": "Invalid authorization format",
-			})
-			ctx.Abort()
+		val, err := rdb.Get(context.Background(), tokenString).Result()
+		if err == nil && val == "blacklist" {
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "Токен недействителен (выход из системы)."})
+			return
+		}
+		if err != nil && !errors.Is(err, redis.Nil) {
+			logrus.Error("Redis Error in AuthMiddleware:", err)
+			ctx.AbortWithStatus(http.StatusInternalServerError)
 			return
 		}
 
-		tokenString := parts[1]
-
-		// Проверяем, не в blacklist ли токен (если Redis доступен)
-		if a.redisClient != nil {
-			err := a.redisClient.CheckJWTInBlacklist(ctx.Request.Context(), tokenString)
-			if err == nil {
-				ctx.JSON(http.StatusUnauthorized, gin.H{
-					"error":   true,
-					"message": "Token revoked",
-				})
-				ctx.Abort()
-				return
-			}
-			if !errors.Is(err, redis.Nil) {
-				ctx.JSON(http.StatusInternalServerError, gin.H{
-					"error":   true,
-					"message": "Internal server error",
-				})
-				ctx.Abort()
-				return
-			}
-		}
-
-		token, err := jwt.ParseWithClaims(tokenString, &ds.JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-			return []byte(a.cfg.JWT.Token), nil
-		})
-
-		if err != nil || !token.Valid {
-			ctx.JSON(http.StatusUnauthorized, gin.H{
-				"error":   true,
-				"message": "Invalid token",
-			})
-			ctx.Abort()
+		claims, err := service.ParseJWT(tokenString, secretKey)
+		if err != nil {
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "Недействительный токен."})
 			return
 		}
 
-		claims, ok := token.Claims.(*ds.JWTClaims)
-		if !ok {
-			ctx.JSON(http.StatusUnauthorized, gin.H{
-				"error":   true,
-				"message": "Invalid token claims",
-			})
-			ctx.Abort()
-			return
-		}
-
-		// Сохраняем user_id в контекст
-		ctx.Set("user_id", claims.Subject)
-		ctx.Set("user_uuid", claims.UserUUID.String())
-		ctx.Set("user_role", claims.Role)
+		ctx.Set("userID", claims.UserID)
+		ctx.Set("userRole", claims.Role)
+		ctx.Set("tokenString", tokenString)
 
 		ctx.Next()
 	}
+}
+
+func GetUserID(ctx *gin.Context) int {
+	userID, ok := ctx.Get("userID")
+	if !ok {
+		return 0
+	}
+	return userID.(int)
+}
+
+func IsModerator(ctx *gin.Context) bool {
+	isModerator, ok := ctx.Get("isModerator")
+	if !ok {
+		return false
+	}
+	return isModerator.(bool)
+}
+
+func GetTokenString(ctx *gin.Context) string {
+	token, ok := ctx.Get("tokenString")
+	if !ok {
+		return ""
+	}
+	return token.(string)
+}
+
+func GetRole(ctx *gin.Context) ds.UserRole {
+	role, ok := ctx.Get("userRole")
+	if !ok {
+		return ds.RoleGuest
+	}
+	return role.(ds.UserRole)
+}
+func GetUserRole(ctx *gin.Context) string {
+	if role, exists := ctx.Get("user_role"); exists {
+		if roleStr, ok := role.(string); ok {
+			return roleStr
+		}
+	}
+	return ""
 }
