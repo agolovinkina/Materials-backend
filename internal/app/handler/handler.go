@@ -93,8 +93,6 @@ func (h *Handler) RegisterHandler(router *gin.Engine) {
 		api.GET("/materials/:id", h.GetMaterialByID)
 
 		api.GET("/dating/cart/icon", h.GetDatingCartIcon)
-
-		api.POST("/test-upload", h.TestFileUpload)
 	}
 
 	auth := router.Group("/api")

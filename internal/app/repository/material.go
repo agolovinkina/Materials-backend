@@ -48,6 +48,19 @@ func (r *Repository) DeleteMaterial(id uint) error {
 	return r.db.Model(&ds.Material{}).Where("material_id = ?", id).Update("is_deleted", true).Error
 }
 
-func (r *Repository) UpdateMaterialImage(id uint, imageURL string) error {
-	return r.db.Model(&ds.Material{}).Where("material_id = ?", id).Update("material_image_url", imageURL).Error
+func (r *Repository) UpdateMaterialImage(id uint, imageURL string) (*ds.Material, error) {
+	var material ds.Material
+	err := r.db.Where("material_id = ? AND is_deleted = false", id).First(&material).Error
+	if err != nil {
+		return nil, err
+	}
+
+	material.MaterialImageURL = imageURL
+
+	err = r.db.Save(&material).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return &material, nil
 }

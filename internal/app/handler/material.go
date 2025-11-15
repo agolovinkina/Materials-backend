@@ -2,16 +2,14 @@ package handler
 
 import (
 	"fmt"
-	"mime/multipart"
+
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
-	"time"
 
 	"lr4/internal/app/ds"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 type CreateMaterialRequest struct {
@@ -129,7 +127,7 @@ func (h *Handler) CreateMaterial(ctx *gin.Context) {
 // @Produce json
 // @Param id path int true "Material ID"
 // @Param material body UpdateMaterialRequest true "Material update data"
-// @Success 204 "Material updated successfully"
+// @Success 200 {object} map[string]interface{} "Material updated successfully"
 // @Failure 400 {object} map[string]interface{} "Bad request"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /materials/{id} [put]
@@ -147,6 +145,13 @@ func (h *Handler) UpdateMaterial(ctx *gin.Context) {
 		return
 	}
 
+	// Проверяем, существует ли материал
+	_, err = h.Repository.GetMaterialByID(uint(id))
+	if err != nil {
+		h.errorHandler(ctx, http.StatusNotFound, fmt.Errorf("материал не найден"))
+		return
+	}
+
 	updates := make(map[string]interface{})
 	if req.MaterialName != "" {
 		updates["material_name"] = req.MaterialName
@@ -161,22 +166,34 @@ func (h *Handler) UpdateMaterial(ctx *gin.Context) {
 		updates["sample_requirements"] = req.SampleRequirements
 	}
 
+	if len(updates) == 0 {
+		h.errorHandler(ctx, http.StatusBadRequest, fmt.Errorf("нет данных для обновления"))
+		return
+	}
+
 	err = h.Repository.UpdateMaterial(uint(id), updates)
 	if err != nil {
 		h.errorHandler(ctx, http.StatusInternalServerError, err)
 		return
 	}
 
-	ctx.Status(http.StatusNoContent)
+	// Получаем обновленный материал для ответа
+	updatedMaterial, err := h.Repository.GetMaterialByID(uint(id))
+	if err != nil {
+		h.errorHandler(ctx, http.StatusInternalServerError, err)
+		return
+	}
+
+	h.successResponse(ctx, updatedMaterial)
 }
 
-// DeleteMaterial удаляет материал
+// DeleteMaterial удаляет материал (мягкое удаление)
 // @Summary Delete material
 // @Description Delete material by ID (admin only)
 // @Tags Materials
 // @Security BearerAuth
 // @Param id path int true "Material ID"
-// @Success 204 "Material deleted successfully"
+// @Success 200 {object} map[string]interface{} "Material deleted successfully"
 // @Failure 400 {object} map[string]interface{} "Bad request"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /materials/{id} [delete]
@@ -188,139 +205,112 @@ func (h *Handler) DeleteMaterial(ctx *gin.Context) {
 		return
 	}
 
+	// Проверяем, существует ли материал
+	_, err = h.Repository.GetMaterialByID(uint(id))
+	if err != nil {
+		h.errorHandler(ctx, http.StatusNotFound, fmt.Errorf("материал не найден"))
+		return
+	}
+
 	err = h.Repository.DeleteMaterial(uint(id))
 	if err != nil {
 		h.errorHandler(ctx, http.StatusInternalServerError, err)
 		return
 	}
 
-	ctx.Status(http.StatusNoContent)
+	ctx.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": "Материал успешно удален",
+	})
 }
 
-// UploadMaterialImage загружает изображение для материала
-// @Summary Upload material image
-// @Description Upload image for material (admin only)
-// @Tags Materials
-// @Security BearerAuth
+// UploadMaterialImage
+// @Summary Загрузить изображение материала
+// @Description Загружает и обновляет изображение для материала по ID. Требуются права **Модератора**.
+// @Tags Материалы
 // @Accept multipart/form-data
 // @Produce json
-// @Param id path int true "Material ID"
-// @Param image formData file true "Image file"
-// @Success 200 {object} map[string]interface{} "Image uploaded successfully"
-// @Failure 400 {object} map[string]interface{} "Bad request"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Security BearerAuth
+// @Param id path int true "ID материала"
+// @Param image formData file true "Файл изображения"
+// @Success 200 {object} ds.Material "Успешная загрузка, возвращает обновленный материал"
+// @Failure 400 {object} handler.ErrorResponse "Ошибка загрузки/формата файла"
+// @Failure 403 {object} handler.ErrorResponse "Доступ запрещен (не модератор)"
+// @Failure 500 {object} handler.ErrorResponse "Ошибка Minio/сервера"
 // @Router /materials/{id}/image [post]
 func (h *Handler) UploadMaterialImage(ctx *gin.Context) {
-	strID := ctx.Param("id")
-	id, err := strconv.Atoi(strID)
+	if h.MinioClient == nil {
+		h.errorHandler(ctx, http.StatusServiceUnavailable,
+			fmt.Errorf("image storage service not configured"))
+		return
+	}
+
+	if !h.checkMinioConnection() {
+		h.errorHandler(ctx, http.StatusServiceUnavailable,
+			fmt.Errorf("image storage service temporarily unavailable. Please try again later"))
+		return
+	}
+
+	idStr := ctx.Param("id")
+	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		h.errorHandler(ctx, http.StatusBadRequest, err)
+		h.errorHandler(ctx, http.StatusBadRequest, fmt.Errorf("invalid material ID: %v", err))
+		return
+	}
+
+	material, err := h.Repository.GetMaterialByID(uint(id))
+	if err != nil {
+		h.errorHandler(ctx, http.StatusNotFound, fmt.Errorf("material not found: %v", err))
 		return
 	}
 
 	file, err := ctx.FormFile("image")
 	if err != nil {
-		h.errorHandler(ctx, http.StatusBadRequest, fmt.Errorf("ошибка получения файла: %w", err))
+		h.errorHandler(ctx, http.StatusBadRequest, fmt.Errorf("image file is required: %v", err))
 		return
 	}
 
-	if !isImageFile(file) {
-		h.errorHandler(ctx, http.StatusBadRequest, fmt.Errorf("файл должен быть изображением (JPEG, PNG, GIF)"))
+	if !h.isValidImage(file) {
+		h.errorHandler(ctx, http.StatusBadRequest,
+			fmt.Errorf("invalid image format. Allowed: JPEG, PNG, GIF, WebP"))
 		return
 	}
 
-	uploadPath := "./uploads/materials/"
-	if err := os.MkdirAll(uploadPath, 0755); err != nil {
-		h.errorHandler(ctx, http.StatusInternalServerError, err)
+	if file.Size > 5*1024*1024 {
+		h.errorHandler(ctx, http.StatusBadRequest,
+			fmt.Errorf("image size too large. Maximum 5MB allowed"))
 		return
 	}
 
-	fileExt := filepath.Ext(file.Filename)
-	fileName := fmt.Sprintf("material_%d_%d%s", id, time.Now().Unix(), fileExt)
-	filePath := filepath.Join(uploadPath, fileName)
-
-	if err := ctx.SaveUploadedFile(file, filePath); err != nil {
-		h.errorHandler(ctx, http.StatusInternalServerError, err)
-		return
+	if material.MaterialImageURL != "" {
+		err = h.deleteImageFromMinio(material.MaterialImageURL)
+		if err != nil {
+			logrus.Warnf("Failed to delete old image from Minio: %v", err)
+		}
 	}
 
-	imageURL := fmt.Sprintf("/static/uploads/materials/%s", fileName)
+	objectName := h.generateImageName(file.Filename, id)
 
-	err = h.Repository.UpdateMaterialImage(uint(id), imageURL)
+	imageURL, err := h.uploadImageToMinio(file, objectName)
 	if err != nil {
-		os.Remove(filePath)
-		h.errorHandler(ctx, http.StatusInternalServerError, err)
+		logrus.Errorf("Failed to upload image to Minio: %v", err)
+		h.errorHandler(ctx, http.StatusInternalServerError,
+			fmt.Errorf("failed to upload image: %v", err))
 		return
 	}
+
+	updatedMaterial, err := h.Repository.UpdateMaterialImage(uint(id), imageURL)
+	if err != nil {
+		logrus.Errorf("Failed to update material in database, rolling back image upload")
+		h.deleteImageFromMinio(imageURL)
+		h.errorHandler(ctx, http.StatusInternalServerError,
+			fmt.Errorf("failed to update material: %v", err))
+		return
+	}
+
+	logrus.Infof("Successfully updated material %d with new image: %s", id, imageURL)
 
 	ctx.JSON(http.StatusOK, gin.H{
-		"status":    "success",
-		"image_url": imageURL,
-		"message":   "Изображение успешно загружено",
+		"data": updatedMaterial,
 	})
-}
-
-// TestFileUpload тестовый endpoint для загрузки файлов
-// @Summary Test file upload
-// @Description Test endpoint for file upload debugging
-// @Tags Debug
-// @Accept multipart/form-data
-// @Produce json
-// @Param image formData file true "Test file"
-// @Success 200 {object} map[string]interface{} "Test successful"
-// @Failure 400 {object} map[string]interface{} "Bad request"
-// @Router /test-upload [post]
-func (h *Handler) TestFileUpload(ctx *gin.Context) {
-	fmt.Println("DEBUG: TestFileUpload called")
-
-	form, err := ctx.MultipartForm()
-	if err != nil {
-		fmt.Printf("DEBUG: MultipartForm error: %v\n", err)
-		ctx.JSON(400, gin.H{"error": err.Error()})
-		return
-	}
-
-	files := form.File["image"]
-	fmt.Printf("DEBUG: Files in form: %d\n", len(files))
-
-	if len(files) == 0 {
-		fmt.Printf("DEBUG: All form fields: %+v\n", form.Value)
-		ctx.JSON(400, gin.H{"error": "No files received", "form_fields": form.Value})
-		return
-	}
-
-	for i, file := range files {
-		fmt.Printf("DEBUG: File %d: %s, Size: %d\n", i, file.Filename, file.Size)
-	}
-
-	ctx.JSON(200, gin.H{
-		"message":     "test successful",
-		"files_count": len(files),
-		"files":       files,
-	})
-}
-
-// Вспомогательная функция для проверки типа файла
-func isImageFile(file *multipart.FileHeader) bool {
-	allowedTypes := map[string]bool{
-		"image/jpeg": true,
-		"image/jpg":  true,
-		"image/png":  true,
-		"image/gif":  true,
-	}
-
-	fileHeader, err := file.Open()
-	if err != nil {
-		return false
-	}
-	defer fileHeader.Close()
-
-	buffer := make([]byte, 512)
-	_, err = fileHeader.Read(buffer)
-	if err != nil {
-		return false
-	}
-
-	mimeType := http.DetectContentType(buffer)
-	return allowedTypes[mimeType]
 }

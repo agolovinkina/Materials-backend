@@ -20,6 +20,11 @@ type ProcessDatingRequestRequest struct {
 	Action string `json:"action" binding:"required"`
 }
 
+type UpdateRequestMaterialRequest struct {
+	Comment           string `json:"comment"`
+	SampleDescription string `json:"sample_description"`
+}
+
 // GetDatingRequests получает список заявок на датирование
 // @Summary Get dating requests
 // @Description Get list of dating requests with filtering
@@ -373,7 +378,7 @@ func (h *Handler) RemoveMaterialFromRequest(ctx *gin.Context) {
 	materialID, err2 := strconv.Atoi(materialIDStr)
 
 	if err1 != nil || err2 != nil {
-		h.errorHandler(ctx, http.StatusBadRequest, err1)
+		h.errorHandler(ctx, http.StatusBadRequest, fmt.Errorf("invalid ID format"))
 		return
 	}
 
@@ -397,7 +402,7 @@ func (h *Handler) RemoveMaterialFromRequest(ctx *gin.Context) {
 // @Produce json
 // @Param requestId path int true "Request ID"
 // @Param materialId path int true "Material ID"
-// @Param updates body map[string]interface{} true "Update data"
+// @Param updates body UpdateRequestMaterialRequest true "Update data"
 // @Success 200 {object} map[string]interface{} "Material updated successfully"
 // @Failure 400 {object} map[string]interface{} "Bad request"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
@@ -410,13 +415,28 @@ func (h *Handler) UpdateRequestMaterial(ctx *gin.Context) {
 	materialID, err2 := strconv.Atoi(materialIDStr)
 
 	if err1 != nil || err2 != nil {
-		h.errorHandler(ctx, http.StatusBadRequest, err1)
+		h.errorHandler(ctx, http.StatusBadRequest, fmt.Errorf("invalid ID format"))
 		return
 	}
 
-	var updates map[string]interface{}
-	if err := ctx.BindJSON(&updates); err != nil {
+	var req UpdateRequestMaterialRequest
+	if err := ctx.BindJSON(&req); err != nil {
 		h.errorHandler(ctx, http.StatusBadRequest, err)
+		return
+	}
+
+	// Создаем updates только с разрешенными полями
+	updates := make(map[string]interface{})
+	if req.Comment != "" {
+		updates["comment"] = req.Comment
+	}
+	if req.SampleDescription != "" {
+		updates["sample_description"] = req.SampleDescription
+	}
+
+	// Проверяем, что есть что обновлять
+	if len(updates) == 0 {
+		h.errorHandler(ctx, http.StatusBadRequest, fmt.Errorf("no valid fields to update"))
 		return
 	}
 
@@ -427,6 +447,7 @@ func (h *Handler) UpdateRequestMaterial(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
-		"status": "success",
+		"status":  "success",
+		"message": "Material updated successfully",
 	})
 }
